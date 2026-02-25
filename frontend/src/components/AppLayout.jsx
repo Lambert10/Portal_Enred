@@ -18,7 +18,9 @@ export default function AppLayout() {
       <div className="shellGrid">
         <aside className="sidebar">
           <div className="brandRow">
-            <div className="brandLogo" />
+            <div className="brandLogo">
+              <img src="/logos/enred-consultores.png" alt="Enred Consultores" />
+            </div>
             <div className="brandText">
               <h2>Portal Enred</h2>
               <p>BI para clientes</p>
@@ -30,22 +32,17 @@ export default function AppLayout() {
               to="/dashboards"
               className={({ isActive }) => `navLink ${isActive ? "navLinkActive" : ""}`}
             >
-              <span>📊 Dashboards</span>
+              <span>Dashboards</span>
               <span className="navMeta">Lista</span>
             </NavLink>
 
             <NavLink
-              to="/dashboard/abastible"
+              to="/admin/providers"
               className={({ isActive }) => `navLink ${isActive ? "navLinkActive" : ""}`}
             >
-              <span>🧩 Último abierto</span>
-              <span className="navMeta">View</span>
+              <span>Admin proveedores</span>
+              <span className="navMeta">Config</span>
             </NavLink>
-
-            <a className="navLink" href="#" onClick={(e) => e.preventDefault()}>
-              <span>⚙️ Admin (pronto)</span>
-              <span className="navMeta">Soon</span>
-            </a>
           </nav>
 
           <div
@@ -56,7 +53,7 @@ export default function AppLayout() {
               fontSize: 12,
             }}
           >
-            Próximo paso: login real + panel admin + embedded tokens.
+            Proximo paso: login real + permisos por rol + embedded tokens.
           </div>
         </aside>
 
@@ -64,13 +61,13 @@ export default function AppLayout() {
           <div className="topbar">
             <div className="topTitle">
               <h1>Portal de Dashboards</h1>
-              <span>Vista tecnológica / estilo SaaS</span>
+              <span>Vista tecnologica / estilo SaaS</span>
             </div>
 
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <div className="search">
-                <span style={{ opacity: 0.75 }}>⌕</span>
-                <input placeholder="Buscar (próximamente global)..." disabled />
+                <span style={{ opacity: 0.75 }}>Q</span>
+                <input placeholder="Buscar (proximamente global)..." disabled />
               </div>
 
               <button
@@ -85,9 +82,9 @@ export default function AppLayout() {
                   fontSize: 13,
                   fontWeight: 700,
                 }}
-                title="Cerrar sesión"
+                title="Cerrar sesion"
               >
-                Cerrar sesión
+                Cerrar sesion
               </button>
             </div>
           </div>

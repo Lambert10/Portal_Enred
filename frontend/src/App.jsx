@@ -8,10 +8,11 @@ import RequireAuth from "./components/RequireAuth";
 
 import DashboardsList from "./pages/DashboardsList";
 import DashboardClient from "./pages/DashboardClient";
+import AdminProviders from "./pages/AdminProviders";
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <Routes>
         {/* Público */}
         <Route path="/" element={<Home />} />
@@ -27,6 +28,7 @@ export default function App() {
         >
           <Route path="/dashboards" element={<DashboardsList />} />
           <Route path="/dashboard/:slug" element={<DashboardClient />} />
+          <Route path="/admin/providers" element={<AdminProviders />} />
         </Route>
 
         {/* Catch-all */}

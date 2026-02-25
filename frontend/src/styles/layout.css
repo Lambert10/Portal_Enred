@@ -52,12 +52,17 @@
 
 .brandLogo{
   width:42px;height:42px;border-radius: 14px;
-  background:
-    radial-gradient(circle at 30% 30%, rgba(34,211,238,.95), transparent 55%),
-    radial-gradient(circle at 70% 70%, rgba(124,92,255,.95), transparent 55%),
-    linear-gradient(135deg, rgba(255,255,255,.10), rgba(255,255,255,.02));
+  background: rgba(7,10,18,.85);
   border: 1px solid var(--stroke2);
   box-shadow: 0 16px 50px rgba(0,0,0,.45);
+  overflow: hidden;
+}
+
+.brandLogo img{
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .brandText h2{
@@ -165,6 +170,146 @@
   margin-top: 14px;
 }
 
+.adminGrid{
+  display: grid;
+  grid-template-columns: minmax(320px, 420px) minmax(320px, 1fr);
+  gap: 14px;
+}
+
+.adminPanel{
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.03));
+  box-shadow: 0 18px 60px rgba(0,0,0,.33);
+  padding: 14px;
+}
+
+.adminTitle{
+  margin: 0;
+  font-size: 18px;
+  letter-spacing: .2px;
+}
+
+.adminSub{
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.adminForm{
+  margin-top: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.adminLabel{
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.adminInput{
+  width: 100%;
+  border: 1px solid var(--stroke);
+  border-radius: 12px;
+  background: rgba(0,0,0,.22);
+  color: var(--text);
+  font-size: 13px;
+  padding: 10px 11px;
+  outline: none;
+}
+
+.adminInput:focus{
+  border-color: rgba(124,92,255,.45);
+}
+
+.adminTextarea{
+  min-height: 98px;
+  resize: vertical;
+}
+
+.adminCheck{
+  margin-top: 2px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.adminActions{
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.adminBtn,
+.adminBtnGhost{
+  cursor: pointer;
+  border-radius: 12px;
+  border: 1px solid var(--stroke2);
+  padding: 10px 12px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.adminBtn{
+  background: linear-gradient(135deg, rgba(124,92,255,.36), rgba(34,211,238,.22));
+}
+
+.adminBtnGhost{
+  background: rgba(255,255,255,.04);
+}
+
+.adminBtn:disabled,
+.adminBtnGhost:disabled{
+  opacity: .65;
+  cursor: not-allowed;
+}
+
+.adminList{
+  margin-top: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.adminListItem{
+  width: 100%;
+  border: 1px solid var(--stroke);
+  border-radius: 12px;
+  background: rgba(0,0,0,.2);
+  color: var(--text);
+  text-align: left;
+  padding: 10px 12px;
+  display: grid;
+  gap: 3px;
+  cursor: pointer;
+}
+
+.adminListItem strong{
+  font-size: 14px;
+}
+
+.adminListItem span{
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.adminStatus{
+  justify-self: start;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.14);
+  padding: 3px 8px;
+  color: rgba(255,220,220,.9) !important;
+  background: rgba(239,68,68,.16);
+}
+
+.adminStatusOn{
+  color: rgba(220,255,240,.92) !important;
+  background: rgba(34,197,94,.18);
+}
+
 @media (max-width: 980px){
   .shellGrid{ grid-template-columns: 1fr; }
   .sidebar{
@@ -172,5 +317,9 @@
     height: auto;
     border-right: none;
     border-bottom: 1px solid var(--stroke);
+  }
+
+  .adminGrid{
+    grid-template-columns: 1fr;
   }
 }

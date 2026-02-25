@@ -9,10 +9,22 @@ const coverPool = [
   "https://images.pexels.com/photos/7552374/pexels-photo-7552374.jpeg?auto=compress&cs=tinysrgb&w=1600",
 ];
 
+const coverBySlug = {
+  abastible: { src: "/logos/abastible.png", mode: "contain", tone: "light" },
+  andesmotors: { src: "/logos/andes-motors.jpg", mode: "cover" },
+  "andes-motors": { src: "/logos/andes-motors.jpg", mode: "cover" },
+};
+
 function coverFor(slug, index) {
-  if (!slug) return coverPool[index % coverPool.length];
+  const key = String(slug || "").toLowerCase();
+  if (coverBySlug[key]) {
+    return coverBySlug[key];
+  }
+
+  if (!slug) return { src: coverPool[index % coverPool.length], mode: "cover" };
+
   const hash = [...slug].reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
-  return coverPool[hash % coverPool.length];
+  return { src: coverPool[hash % coverPool.length], mode: "cover" };
 }
 
 export default function DashboardsList() {
@@ -82,36 +94,48 @@ export default function DashboardsList() {
       </section>
 
       <section className="dashCardsGrid">
-        {items.map((client, idx) => (
-          <Link key={client.slug} className="dashCard" to={`/dashboard/${client.slug}`}>
-            <div className="dashCardMedia">
-              <img src={coverFor(client.slug, idx)} alt={`Vista analitica de ${client.name}`} loading="lazy" />
+        {items.map((client, idx) => {
+          const cover = coverFor(client.slug, idx);
+          return (
+            <Link key={client.slug} className="dashCard" to={`/dashboard/${client.slug}`}>
+              <div
+                className={`dashCardMedia ${cover.mode === "contain" ? "dashCardMediaLogo" : ""} ${
+                  cover.tone === "light" ? "dashCardMediaLogoLight" : ""
+                }`}
+              >
+                <img
+                  className="dashCardImage"
+                  src={cover.src}
+                  alt={cover.mode === "contain" ? `Logo de ${client.name}` : `Vista analitica de ${client.name}`}
+                  loading="lazy"
+                />
               <span className="dashCardBadge">Activo</span>
-            </div>
-
-            <div className="dashCardBody">
-              <div className="dashCardHead">
-                <h3>{client.name}</h3>
-                <span className="dashCardSlug">{client.slug}</span>
               </div>
 
-              <p className="dashCardDesc">
-                Dashboard centralizado para seguimiento de KPIs, avances operativos y lectura ejecutiva.
-              </p>
+              <div className="dashCardBody">
+                <div className="dashCardHead">
+                  <h3>{client.name}</h3>
+                  <span className="dashCardSlug">{client.slug}</span>
+                </div>
 
-              <div className="dashCardTags">
-                <span>Power BI</span>
-                <span>Cliente</span>
-                <span>En linea</span>
-              </div>
+                <p className="dashCardDesc">
+                  Dashboard centralizado para seguimiento de KPIs, avances operativos y lectura ejecutiva.
+                </p>
 
-              <div className="dashCardCta">
-                <span>Abrir dashboard</span>
-                <span>/dashboard/{client.slug}</span>
+                <div className="dashCardTags">
+                  <span>Power BI</span>
+                  <span>Cliente</span>
+                  <span>En linea</span>
+                </div>
+
+                <div className="dashCardCta">
+                  <span>Abrir dashboard</span>
+                  <span>/dashboard/{client.slug}</span>
+                </div>
               </div>
-            </div>
-          </Link>
-        ))}
+            </Link>
+          );
+        })}
       </section>
     </div>
   );
