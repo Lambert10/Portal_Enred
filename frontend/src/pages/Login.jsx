@@ -49,7 +49,9 @@ export default function Login() {
     <div style={styles.wrap}>
       <div style={styles.card}>
         <div style={styles.head}>
-          <div style={styles.logo} />
+          <div style={styles.logo}>
+            <img src="/logos/enred-consultores.png" alt="Enred Consultores" style={styles.logoImg} />
+          </div>
           <div>
             <h2 style={{ margin: 0 }}>Ingresar</h2>
             <p style={styles.sub}>Accede al portal de dashboards</p>
@@ -108,9 +110,15 @@ const styles = {
     width: 44,
     height: 44,
     borderRadius: 14,
-    background:
-      "radial-gradient(circle at 30% 30%, rgba(34,211,238,.95), transparent 55%), radial-gradient(circle at 70% 70%, rgba(124,92,255,.95), transparent 55%), linear-gradient(135deg, rgba(255,255,255,.10), rgba(255,255,255,.02))",
+    background: "rgba(7,10,18,.85)",
     border: "1px solid rgba(255,255,255,.12)",
+    overflow: "hidden",
+  },
+  logoImg: {
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+    display: "block",
   },
   sub: { margin: "4px 0 0", fontSize: 12, color: "rgba(232,236,255,.65)" },
   label: { display: "block", marginTop: 12, marginBottom: 6, fontSize: 12, color: "rgba(232,236,255,.70)" },
