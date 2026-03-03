@@ -296,6 +296,126 @@
   color: var(--muted);
 }
 
+.adminUsersWrap{
+  display: grid;
+  gap: 14px;
+}
+
+.adminUsersHead{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.adminBtnLink{
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.adminUsersTableWrap{
+  margin-top: 12px;
+  overflow-x: auto;
+  border: 1px solid var(--stroke);
+  border-radius: 14px;
+  background: rgba(0,0,0,.16);
+}
+
+.adminUsersTable{
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 760px;
+}
+
+.adminUsersTable th,
+.adminUsersTable td{
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--stroke);
+  font-size: 13px;
+  color: var(--text);
+  vertical-align: middle;
+}
+
+.adminUsersTable th{
+  text-align: left;
+  color: var(--muted);
+  font-weight: 600;
+  background: rgba(255,255,255,.03);
+}
+
+.adminUsersTable tbody tr:hover{
+  background: rgba(124,92,255,.08);
+}
+
+.adminUsersTable tbody tr:last-child td{
+  border-bottom: none;
+}
+
+.adminUserCell{
+  display: grid;
+  gap: 3px;
+}
+
+.adminUserCell strong{
+  font-size: 14px;
+}
+
+.adminUserCell span{
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.adminPill{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid var(--stroke);
+  background: rgba(255,255,255,.04);
+  color: var(--text);
+  padding: 3px 8px;
+  font-size: 11px;
+  text-transform: lowercase;
+}
+
+.adminRowActions{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.adminUserFormPanel{
+  max-width: 920px;
+}
+
+.adminUserForm{
+  margin-top: 14px;
+}
+
+.adminFormRow{
+  display: grid;
+  grid-template-columns: minmax(180px, 240px) 1fr;
+  gap: 12px;
+  align-items: end;
+}
+
+.adminCheckInline{
+  margin-top: 18px;
+}
+
+.adminMultiSelect{
+  min-height: 180px;
+}
+
+.adminHint{
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--muted2);
+}
+
 .adminStatus{
   justify-self: start;
   border-radius: 999px;
@@ -321,5 +441,19 @@
 
   .adminGrid{
     grid-template-columns: 1fr;
+  }
+
+  .adminUsersHead{
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .adminFormRow{
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .adminCheckInline{
+    margin-top: 0;
   }
 }

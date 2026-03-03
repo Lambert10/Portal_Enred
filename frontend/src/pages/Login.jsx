@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useLocation, useNavigate, Link } from "react-router-dom";
+import { apiPost } from "../lib/api";
 
 export default function Login() {
   const nav = useNavigate();
@@ -8,25 +9,40 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [pass, setPass] = useState("");
   const [err, setErr] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  function onSubmit(e) {
+  async function onSubmit(e) {
     e.preventDefault();
     setErr("");
 
     if (!email.trim() || !pass.trim()) {
-      setErr("Ingresa correo y contraseña.");
+      setErr("Ingresa correo y contrasena.");
       return;
     }
 
-    // ✅ sesión MVP local
     try {
-      localStorage.setItem("enred_session", JSON.stringify({ email, ts: Date.now() }));
-    } catch {
-      // ignore
-    }
+      setLoading(true);
 
-    const to = loc.state?.from || "/dashboards";
-    nav(to, { replace: true });
+      const data = await apiPost("/api/auth/login", {
+        email: email.trim(),
+        password: pass,
+      });
+
+      if (!data?.token || !data?.user) {
+        throw new Error("Respuesta invalida del servidor.");
+      }
+
+      localStorage.setItem("enred_token", data.token);
+      localStorage.setItem("enred_user", JSON.stringify(data.user));
+      localStorage.removeItem("enred_session");
+
+      const to = loc.state?.from || "/dashboards";
+      nav(to, { replace: true });
+    } catch (error) {
+      setErr(error?.message || "No se pudo iniciar sesion.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -51,26 +67,26 @@ export default function Login() {
             placeholder="tu@empresa.com"
           />
 
-          <label style={styles.label}>Contraseña</label>
+          <label style={styles.label}>Contrasena</label>
           <input
             style={styles.input}
             type="password"
             value={pass}
             onChange={(e) => setPass(e.target.value)}
-            placeholder="••••••••"
+            placeholder="********"
           />
 
-          <button style={styles.btn} type="submit">
-            Entrar →
+          <button style={styles.btn} type="submit" disabled={loading}>
+            {loading ? "Ingresando..." : "Entrar ->"}
           </button>
 
           <div style={styles.links}>
-            <Link to="/" style={styles.link}>← Volver al inicio</Link>
+            <Link to="/" style={styles.link}>
+              Volver al inicio
+            </Link>
           </div>
 
-          <div style={styles.note}>
-            * MVP: esto no valida contra servidor todavía. Luego lo hacemos con JWT.
-          </div>
+          <div style={styles.note}>* Autenticacion con JWT activa.</div>
         </form>
       </div>
     </div>
@@ -89,7 +105,9 @@ const styles = {
   },
   head: { display: "flex", alignItems: "center", gap: 12 },
   logo: {
-    width: 44, height: 44, borderRadius: 14,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     background:
       "radial-gradient(circle at 30% 30%, rgba(34,211,238,.95), transparent 55%), radial-gradient(circle at 70% 70%, rgba(124,92,255,.95), transparent 55%), linear-gradient(135deg, rgba(255,255,255,.10), rgba(255,255,255,.02))",
     border: "1px solid rgba(255,255,255,.12)",

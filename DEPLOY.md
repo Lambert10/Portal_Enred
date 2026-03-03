@@ -7,9 +7,13 @@
 4. Configura variables:
    - `DATABASE_URL`: cadena de conexion a Postgres productivo.
    - `CORS_ORIGIN`: URL de Netlify (ej: `https://tu-frontend.netlify.app`).
+   - `JWT_SECRET`: secreto largo para firmar JWT.
    - Si usas previews, puedes agregar varias separadas por coma.
 5. Deploy y prueba:
    - `https://tu-backend.onrender.com/health`
+6. Ejecuta SQL manual en Postgres (una sola vez):
+   - `backend/sql/init_clients.sql`
+   - `backend/sql/001_auth.sql`
 
 ## 2) Frontend en Netlify
 1. En Netlify, crea sitio desde el mismo repo.

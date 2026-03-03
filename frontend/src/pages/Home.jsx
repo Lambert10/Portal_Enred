@@ -1,5 +1,6 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { apiGet } from "../lib/api";
 
 const highlights = [
   {
@@ -101,6 +102,31 @@ function CapabilityIcon({ icon }) {
 }
 
 export default function Home() {
+  const [stats, setStats] = useState({
+    clients_active: null,
+    dashboards_published: null,
+    days_live: null,
+  });
+
+  useEffect(() => {
+    let isMounted = true;
+
+    apiGet("/api/stats")
+      .then((data) => {
+        if (!isMounted) return;
+        setStats({
+          clients_active: data?.clients_active ?? null,
+          dashboards_published: data?.dashboards_published ?? null,
+          days_live: data?.days_live ?? null,
+        });
+      })
+      .catch(() => {});
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   return (
     <div className="homePage">
       <section className="homeHero">
@@ -124,15 +150,19 @@ export default function Home() {
           <div className="homeKpis">
             <article className="homeKpiCard">
               <span>Clientes activos</span>
-              <strong>+24</strong>
+              <strong>{stats.clients_active === null ? "—" : `+${stats.clients_active}`}</strong>
             </article>
             <article className="homeKpiCard">
               <span>Dashboards publicados</span>
-              <strong>58</strong>
+              <strong>{stats.dashboards_published === null ? "—" : stats.dashboards_published}</strong>
             </article>
             <article className="homeKpiCard">
               <span>Tiempo de habilitacion</span>
-              <strong>1 dia</strong>
+              <strong>
+                {stats.days_live === null
+                  ? "—"
+                  : `${stats.days_live} ${stats.days_live === 1 ? "dia" : "dias"}`}
+              </strong>
             </article>
           </div>
 

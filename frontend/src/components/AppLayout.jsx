@@ -1,11 +1,25 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
+
+function getStoredUser() {
+  try {
+    const raw = localStorage.getItem("enred_user");
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
 
 export default function AppLayout() {
   const nav = useNavigate();
+  const user = useMemo(() => getStoredUser(), []);
+  const isAdmin = user?.role === "admin";
 
   function logout() {
     try {
+      localStorage.removeItem("enred_token");
+      localStorage.removeItem("enred_user");
       localStorage.removeItem("enred_session");
     } catch {
       // ignore
@@ -36,13 +50,25 @@ export default function AppLayout() {
               <span className="navMeta">Lista</span>
             </NavLink>
 
-            <NavLink
-              to="/admin/providers"
-              className={({ isActive }) => `navLink ${isActive ? "navLinkActive" : ""}`}
-            >
-              <span>Admin proveedores</span>
-              <span className="navMeta">Config</span>
-            </NavLink>
+            {isAdmin && (
+              <NavLink
+                to="/admin/providers"
+                className={({ isActive }) => `navLink ${isActive ? "navLinkActive" : ""}`}
+              >
+                <span>Admin proveedores</span>
+                <span className="navMeta">Config</span>
+              </NavLink>
+            )}
+
+            {isAdmin && (
+              <NavLink
+                to="/admin/users"
+                className={({ isActive }) => `navLink ${isActive ? "navLinkActive" : ""}`}
+              >
+                <span>Admin usuarios</span>
+                <span className="navMeta">CRUD</span>
+              </NavLink>
+            )}
           </nav>
 
           <div

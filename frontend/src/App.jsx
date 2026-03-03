@@ -5,10 +5,13 @@ import Home from "./pages/Home";
 import Login from "./pages/Login";
 import AppLayout from "./components/AppLayout";
 import RequireAuth from "./components/RequireAuth";
+import RequireAdmin from "./components/RequireAdmin";
 
 import DashboardsList from "./pages/DashboardsList";
 import DashboardClient from "./pages/DashboardClient";
 import AdminProviders from "./pages/AdminProviders";
+import AdminUsersList from "./pages/AdminUsersList";
+import AdminUserForm from "./pages/AdminUserForm";
 
 export default function App() {
   return (
@@ -28,7 +31,38 @@ export default function App() {
         >
           <Route path="/dashboards" element={<DashboardsList />} />
           <Route path="/dashboard/:slug" element={<DashboardClient />} />
-          <Route path="/admin/providers" element={<AdminProviders />} />
+          <Route
+            path="/admin/providers"
+            element={
+              <RequireAdmin>
+                <AdminProviders />
+              </RequireAdmin>
+            }
+          />
+          <Route
+            path="/admin/users"
+            element={
+              <RequireAdmin>
+                <AdminUsersList />
+              </RequireAdmin>
+            }
+          />
+          <Route
+            path="/admin/users/new"
+            element={
+              <RequireAdmin>
+                <AdminUserForm />
+              </RequireAdmin>
+            }
+          />
+          <Route
+            path="/admin/users/:id"
+            element={
+              <RequireAdmin>
+                <AdminUserForm />
+              </RequireAdmin>
+            }
+          />
         </Route>
 
         {/* Catch-all */}
