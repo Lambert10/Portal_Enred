@@ -14,6 +14,8 @@
 6. Ejecuta SQL manual en Postgres (una sola vez):
    - `backend/sql/init_clients.sql`
    - `backend/sql/001_auth.sql`
+   - `backend/sql/002_agenda.sql`
+   - Si ya tenias el sistema funcionando antes, para esta version basta con ejecutar `002_agenda.sql`.
 
 ## 2) Frontend en Netlify
 1. En Netlify, crea sitio desde el mismo repo.

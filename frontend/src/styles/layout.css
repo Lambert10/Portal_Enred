@@ -430,6 +430,117 @@
   background: rgba(34,197,94,.18);
 }
 
+.agendaWrap{
+  display: grid;
+  gap: 14px;
+}
+
+.agendaFilters{
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: auto minmax(150px, 220px) auto minmax(150px, 220px);
+  gap: 8px;
+  align-items: center;
+}
+
+.agendaCalendarWrap{
+  margin-top: 12px;
+  border: 1px solid var(--stroke);
+  border-radius: 14px;
+  background: rgba(0,0,0,.16);
+  padding: 10px;
+}
+
+.agendaModalOverlay{
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.58);
+  backdrop-filter: blur(3px);
+  display: grid;
+  place-items: center;
+  z-index: 40;
+  padding: 12px;
+}
+
+.agendaModalCard{
+  width: min(700px, 100%);
+  max-height: calc(100vh - 24px);
+  overflow: auto;
+  border: 1px solid var(--stroke2);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+  box-shadow: 0 24px 80px rgba(0,0,0,.55);
+  padding: 14px;
+}
+
+.agendaEventType-actividad{
+  background: rgba(34,211,238,.22) !important;
+  border-color: rgba(34,211,238,.45) !important;
+}
+
+.agendaEventType-hito{
+  background: rgba(124,92,255,.26) !important;
+  border-color: rgba(124,92,255,.48) !important;
+}
+
+.agendaEventType-compromiso{
+  background: rgba(245,158,11,.25) !important;
+  border-color: rgba(245,158,11,.5) !important;
+}
+
+.agendaEventStatus-completado{
+  opacity: .82;
+  text-decoration: line-through;
+}
+
+.fc{
+  --fc-border-color: rgba(255,255,255,.1);
+  --fc-page-bg-color: transparent;
+  --fc-neutral-bg-color: rgba(255,255,255,.03);
+  --fc-list-event-hover-bg-color: rgba(124,92,255,.12);
+  --fc-today-bg-color: rgba(124,92,255,.16);
+  --fc-now-indicator-color: #22D3EE;
+}
+
+.fc .fc-toolbar-title{
+  font-size: 18px;
+  letter-spacing: .2px;
+}
+
+.fc .fc-button{
+  border-radius: 10px !important;
+  border: 1px solid var(--stroke2) !important;
+  background: rgba(255,255,255,.06) !important;
+  color: var(--text) !important;
+  box-shadow: none !important;
+}
+
+.fc .fc-button:hover{
+  background: rgba(255,255,255,.14) !important;
+}
+
+.fc .fc-button.fc-button-active{
+  background: rgba(124,92,255,.28) !important;
+  border-color: rgba(124,92,255,.5) !important;
+}
+
+.fc .fc-col-header-cell-cushion,
+.fc .fc-daygrid-day-number{
+  color: rgba(232,236,255,.9);
+  text-decoration: none;
+}
+
+.fc .fc-event{
+  border-radius: 8px;
+  padding: 1px 4px;
+  font-size: 12px;
+}
+
+.fc .fc-timegrid-slot-label-cushion,
+.fc .fc-timegrid-axis-cushion{
+  color: rgba(232,236,255,.7);
+}
+
 @media (max-width: 980px){
   .shellGrid{ grid-template-columns: 1fr; }
   .sidebar{
@@ -455,5 +566,10 @@
 
   .adminCheckInline{
     margin-top: 0;
+  }
+
+  .agendaFilters{
+    grid-template-columns: 1fr;
+    align-items: stretch;
   }
 }

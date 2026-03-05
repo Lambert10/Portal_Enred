@@ -12,6 +12,10 @@ import DashboardClient from "./pages/DashboardClient";
 import AdminProviders from "./pages/AdminProviders";
 import AdminUsersList from "./pages/AdminUsersList";
 import AdminUserForm from "./pages/AdminUserForm";
+import AdminClientsList from "./pages/AdminClientsList";
+import AdminClientForm from "./pages/AdminClientForm";
+import AgendaList from "./pages/AgendaList";
+import AgendaClient from "./pages/AgendaClient";
 
 export default function App() {
   return (
@@ -31,6 +35,8 @@ export default function App() {
         >
           <Route path="/dashboards" element={<DashboardsList />} />
           <Route path="/dashboard/:slug" element={<DashboardClient />} />
+          <Route path="/agenda" element={<AgendaList />} />
+          <Route path="/agenda/:slug" element={<AgendaClient />} />
           <Route
             path="/admin/providers"
             element={
@@ -44,6 +50,30 @@ export default function App() {
             element={
               <RequireAdmin>
                 <AdminUsersList />
+              </RequireAdmin>
+            }
+          />
+          <Route
+            path="/admin/clients"
+            element={
+              <RequireAdmin>
+                <AdminClientsList />
+              </RequireAdmin>
+            }
+          />
+          <Route
+            path="/admin/clients/new"
+            element={
+              <RequireAdmin>
+                <AdminClientForm />
+              </RequireAdmin>
+            }
+          />
+          <Route
+            path="/admin/clients/:id"
+            element={
+              <RequireAdmin>
+                <AdminClientForm />
               </RequireAdmin>
             }
           />

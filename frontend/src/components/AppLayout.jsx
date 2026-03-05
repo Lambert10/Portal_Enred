@@ -50,6 +50,11 @@ export default function AppLayout() {
               <span className="navMeta">Lista</span>
             </NavLink>
 
+            <NavLink to="/agenda" className={({ isActive }) => `navLink ${isActive ? "navLinkActive" : ""}`}>
+              <span>Agenda</span>
+              <span className="navMeta">Calendario</span>
+            </NavLink>
+
             {isAdmin && (
               <NavLink
                 to="/admin/providers"
@@ -57,6 +62,16 @@ export default function AppLayout() {
               >
                 <span>Admin proveedores</span>
                 <span className="navMeta">Config</span>
+              </NavLink>
+            )}
+
+            {isAdmin && (
+              <NavLink
+                to="/admin/clients"
+                className={({ isActive }) => `navLink ${isActive ? "navLinkActive" : ""}`}
+              >
+                <span>Admin clientes</span>
+                <span className="navMeta">CRUD</span>
               </NavLink>
             )}
 

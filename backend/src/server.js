@@ -10,6 +10,9 @@ const app = express();
 const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const validRoles = new Set(["admin", "user"]);
 const passwordMinLength = 8;
+const agendaTypes = new Set(["actividad", "hito", "compromiso"]);
+const agendaStatuses = new Set(["pendiente", "en_progreso", "completado", "cancelado"]);
+const agendaPriorities = new Set(["baja", "media", "alta"]);
 
 function getCorsOrigins() {
   const raw = process.env.CORS_ORIGIN;
@@ -55,6 +58,30 @@ function parseId(value) {
   return id;
 }
 
+function parseDateTimeInput(value) {
+  if (value === null || value === undefined || value === "") return null;
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toISOString();
+}
+
+function parseDateOnlyToIso(value, endExclusive = false) {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null;
+
+  const [year, month, day] = raw.split("-").map((part) => Number(part));
+  if (!year || !month || !day) return null;
+
+  const date = endExclusive
+    ? new Date(Date.UTC(year, month - 1, day + 1, 0, 0, 0, 0))
+    : new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toISOString();
+}
+
 function parseClientIds(value) {
   if (!Array.isArray(value)) return null;
 
@@ -76,6 +103,15 @@ function createHttpError(status, message) {
   const err = new Error(message);
   err.status = status;
   return err;
+}
+
+async function queryWithOptionalUpdatedAt(dbClient, sqlWithUpdatedAt, sqlWithoutUpdatedAt, params) {
+  try {
+    return await dbClient.query(sqlWithUpdatedAt, params);
+  } catch (e) {
+    if (e?.code !== "42703") throw e;
+    return dbClient.query(sqlWithoutUpdatedAt, params);
+  }
 }
 
 async function validateClientIds(dbClient, clientIds) {
@@ -105,6 +141,41 @@ async function replaceUserClients(dbClient, userId, clientIds) {
      SELECT $1, UNNEST($2::bigint[])`,
     [userId, clientIds]
   );
+}
+
+async function resolveClientAccessBySlug(dbClient, user, slug) {
+  const { rows: clientRows } = await dbClient.query(
+    `SELECT id, slug, name
+     FROM clients
+     WHERE slug = $1
+     LIMIT 1`,
+    [slug]
+  );
+
+  if (!clientRows.length) {
+    throw createHttpError(404, "Cliente no encontrado");
+  }
+
+  const client = clientRows[0];
+
+  if (user?.role === "admin") {
+    return client;
+  }
+
+  const { rows: accessRows } = await dbClient.query(
+    `SELECT 1
+     FROM user_clients
+     WHERE user_id = $1
+       AND client_id = $2
+     LIMIT 1`,
+    [user.userId, client.id]
+  );
+
+  if (!accessRows.length) {
+    throw createHttpError(403, "Sin acceso a este cliente");
+  }
+
+  return client;
 }
 
 app.use(express.json());
@@ -188,6 +259,185 @@ app.get("/api/auth/me", requireAuth, async (req, res) => {
 });
 
 app.use("/api/admin", requireAuth, requireAdmin);
+
+app.get("/api/admin/clients", async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, slug, name, embed_url, is_active, created_at
+       FROM clients
+       ORDER BY created_at DESC, id DESC`
+    );
+
+    return res.json({ items: rows });
+  } catch (e) {
+    console.error("admin clients list error:", e);
+    return res.status(500).json({ error: "Error de servidor" });
+  }
+});
+
+app.get("/api/admin/clients/:id", async (req, res) => {
+  const clientId = parseId(req.params.id);
+  if (!clientId) {
+    return res.status(400).json({ error: "ID de cliente invalido." });
+  }
+
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, slug, name, embed_url, is_active, created_at
+       FROM clients
+       WHERE id = $1
+       LIMIT 1`,
+      [clientId]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ error: "Cliente no encontrado." });
+    }
+
+    return res.json({ client: rows[0] });
+  } catch (e) {
+    console.error("admin clients detail error:", e);
+    return res.status(500).json({ error: "Error de servidor" });
+  }
+});
+
+app.post("/api/admin/clients", async (req, res) => {
+  const slug = normalizeSlug(req.body?.slug);
+  const name = cleanText(req.body?.name);
+  const embedUrl = cleanText(req.body?.embed_url);
+  const isActive = hasOwn(req.body, "is_active") ? req.body?.is_active : true;
+
+  if (!slugPattern.test(slug)) {
+    return res.status(400).json({
+      error: "Slug invalido. Usa solo minusculas, numeros y guiones.",
+    });
+  }
+
+  if (!name) {
+    return res.status(400).json({ error: "El nombre es obligatorio." });
+  }
+
+  if (!isValidHttpUrl(embedUrl)) {
+    return res.status(400).json({ error: "embed_url debe ser una URL http/https valida." });
+  }
+
+  if (typeof isActive !== "boolean") {
+    return res.status(400).json({ error: "is_active debe ser booleano." });
+  }
+
+  try {
+    const { rows } = await queryWithOptionalUpdatedAt(
+      pool,
+      `INSERT INTO clients (slug, name, embed_url, is_active, updated_at)
+       VALUES ($1, $2, $3, $4, NOW())
+       RETURNING id, slug, name, embed_url, is_active, created_at`,
+      `INSERT INTO clients (slug, name, embed_url, is_active)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id, slug, name, embed_url, is_active, created_at`,
+      [slug, name, embedUrl, isActive]
+    );
+
+    return res.status(201).json({ client: rows[0] });
+  } catch (e) {
+    if (e?.code === "23505") {
+      return res.status(409).json({ error: "El slug ya existe." });
+    }
+
+    console.error("admin clients create error:", e);
+    return res.status(500).json({ error: "Error de servidor" });
+  }
+});
+
+app.put("/api/admin/clients/:id", async (req, res) => {
+  const clientId = parseId(req.params.id);
+  if (!clientId) {
+    return res.status(400).json({ error: "ID de cliente invalido." });
+  }
+
+  if (!hasOwn(req.body, "name") || !hasOwn(req.body, "embed_url") || !hasOwn(req.body, "is_active")) {
+    return res.status(400).json({ error: "name, embed_url e is_active son obligatorios." });
+  }
+
+  const name = cleanText(req.body?.name);
+  const embedUrl = cleanText(req.body?.embed_url);
+  const isActive = req.body?.is_active;
+
+  if (!name) {
+    return res.status(400).json({ error: "El nombre es obligatorio." });
+  }
+
+  if (!isValidHttpUrl(embedUrl)) {
+    return res.status(400).json({ error: "embed_url debe ser una URL http/https valida." });
+  }
+
+  if (typeof isActive !== "boolean") {
+    return res.status(400).json({ error: "is_active debe ser booleano." });
+  }
+
+  try {
+    const { rows } = await queryWithOptionalUpdatedAt(
+      pool,
+      `UPDATE clients
+       SET
+         name = $1,
+         embed_url = $2,
+         is_active = $3,
+         updated_at = NOW()
+       WHERE id = $4
+       RETURNING id, slug, name, embed_url, is_active, created_at`,
+      `UPDATE clients
+       SET
+         name = $1,
+         embed_url = $2,
+         is_active = $3
+       WHERE id = $4
+       RETURNING id, slug, name, embed_url, is_active, created_at`,
+      [name, embedUrl, isActive, clientId]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ error: "Cliente no encontrado." });
+    }
+
+    return res.json({ client: rows[0] });
+  } catch (e) {
+    console.error("admin clients update error:", e);
+    return res.status(500).json({ error: "Error de servidor" });
+  }
+});
+
+app.delete("/api/admin/clients/:id", async (req, res) => {
+  const clientId = parseId(req.params.id);
+  if (!clientId) {
+    return res.status(400).json({ error: "ID de cliente invalido." });
+  }
+
+  try {
+    const { rows } = await queryWithOptionalUpdatedAt(
+      pool,
+      `UPDATE clients
+       SET
+         is_active = FALSE,
+         updated_at = NOW()
+       WHERE id = $1
+       RETURNING id, slug, name, embed_url, is_active, created_at`,
+      `UPDATE clients
+       SET is_active = FALSE
+       WHERE id = $1
+       RETURNING id, slug, name, embed_url, is_active, created_at`,
+      [clientId]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ error: "Cliente no encontrado." });
+    }
+
+    return res.json({ client: rows[0] });
+  } catch (e) {
+    console.error("admin clients delete error:", e);
+    return res.status(500).json({ error: "Error de servidor" });
+  }
+});
 
 app.get("/api/admin/users", async (req, res) => {
   try {
@@ -521,6 +771,307 @@ app.get("/api/clients", requireAuth, async (req, res) => {
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: "Error de servidor" });
+  }
+});
+
+app.get("/api/clients/:slug/agenda", requireAuth, async (req, res) => {
+  const slug = cleanText(req.params?.slug);
+  const hasFrom = hasOwn(req.query, "from");
+  const hasTo = hasOwn(req.query, "to");
+  const fromIso = hasFrom ? parseDateOnlyToIso(req.query?.from, false) : null;
+  const toExclusiveIso = hasTo ? parseDateOnlyToIso(req.query?.to, true) : null;
+
+  if (hasFrom && !fromIso) {
+    return res.status(400).json({ error: "Parametro from invalido. Usa YYYY-MM-DD." });
+  }
+
+  if (hasTo && !toExclusiveIso) {
+    return res.status(400).json({ error: "Parametro to invalido. Usa YYYY-MM-DD." });
+  }
+
+  if (fromIso && toExclusiveIso && fromIso >= toExclusiveIso) {
+    return res.status(400).json({ error: "Rango de fechas invalido." });
+  }
+
+  try {
+    const client = await resolveClientAccessBySlug(pool, req.user, slug);
+    const params = [client.id];
+    const filters = ["client_id = $1"];
+
+    if (fromIso) {
+      params.push(fromIso);
+      filters.push(`COALESCE(end_at, start_at) >= $${params.length}`);
+    }
+
+    if (toExclusiveIso) {
+      params.push(toExclusiveIso);
+      filters.push(`start_at < $${params.length}`);
+    }
+
+    const { rows } = await pool.query(
+      `SELECT id, client_id, created_by_user_id, title, type, description, start_at, end_at, status, priority, created_at, updated_at
+       FROM agenda_events
+       WHERE ${filters.join(" AND ")}
+       ORDER BY start_at ASC, id ASC`,
+      params
+    );
+
+    return res.json({
+      client,
+      items: rows,
+    });
+  } catch (e) {
+    if (e?.status) {
+      return res.status(e.status).json({ error: e.message });
+    }
+
+    console.error("agenda list error:", e);
+    return res.status(500).json({ error: "Error de servidor" });
+  }
+});
+
+app.post("/api/clients/:slug/agenda", requireAuth, async (req, res) => {
+  const slug = cleanText(req.params?.slug);
+  const title = cleanText(req.body?.title);
+  const type = cleanText(req.body?.type || "actividad").toLowerCase();
+  const description = cleanText(req.body?.description) || null;
+  const startAt = parseDateTimeInput(req.body?.start_at);
+  const endAt = parseDateTimeInput(req.body?.end_at);
+  const status = cleanText(req.body?.status || "pendiente").toLowerCase();
+  const priority = cleanText(req.body?.priority || "media").toLowerCase();
+
+  if (!title) {
+    return res.status(400).json({ error: "title es obligatorio." });
+  }
+
+  if (!agendaTypes.has(type)) {
+    return res.status(400).json({ error: "type invalido." });
+  }
+
+  if (!startAt) {
+    return res.status(400).json({ error: "start_at es obligatorio y debe ser fecha valida." });
+  }
+
+  if (req.body?.end_at !== undefined && req.body?.end_at !== null && req.body?.end_at !== "" && !endAt) {
+    return res.status(400).json({ error: "end_at debe ser fecha valida." });
+  }
+
+  if (endAt && endAt < startAt) {
+    return res.status(400).json({ error: "end_at no puede ser menor que start_at." });
+  }
+
+  if (!agendaStatuses.has(status)) {
+    return res.status(400).json({ error: "status invalido." });
+  }
+
+  if (!agendaPriorities.has(priority)) {
+    return res.status(400).json({ error: "priority invalido." });
+  }
+
+  try {
+    const client = await resolveClientAccessBySlug(pool, req.user, slug);
+    const { rows } = await pool.query(
+      `INSERT INTO agenda_events (
+         client_id,
+         created_by_user_id,
+         title,
+         type,
+         description,
+         start_at,
+         end_at,
+         status,
+         priority
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING id, client_id, created_by_user_id, title, type, description, start_at, end_at, status, priority, created_at, updated_at`,
+      [client.id, req.user.userId, title, type, description, startAt, endAt, status, priority]
+    );
+
+    return res.status(201).json({ event: rows[0] });
+  } catch (e) {
+    if (e?.status) {
+      return res.status(e.status).json({ error: e.message });
+    }
+
+    console.error("agenda create error:", e);
+    return res.status(500).json({ error: "Error de servidor" });
+  }
+});
+
+app.put("/api/clients/:slug/agenda/:eventId", requireAuth, async (req, res) => {
+  const slug = cleanText(req.params?.slug);
+  const eventId = parseId(req.params?.eventId);
+  if (!eventId) {
+    return res.status(400).json({ error: "eventId invalido." });
+  }
+
+  const editableFields = ["title", "type", "description", "start_at", "end_at", "status", "priority"];
+  const hasAnyField = editableFields.some((field) => hasOwn(req.body, field));
+  if (!hasAnyField) {
+    return res.status(400).json({ error: "No hay campos para actualizar." });
+  }
+
+  try {
+    const client = await resolveClientAccessBySlug(pool, req.user, slug);
+    const { rows: currentRows } = await pool.query(
+      `SELECT id, client_id, title, type, description, start_at, end_at, status, priority
+       FROM agenda_events
+       WHERE id = $1 AND client_id = $2
+       LIMIT 1`,
+      [eventId, client.id]
+    );
+
+    if (!currentRows.length) {
+      return res.status(404).json({ error: "Evento no encontrado." });
+    }
+
+    const current = currentRows[0];
+    const nextTitle = hasOwn(req.body, "title") ? cleanText(req.body?.title) : current.title;
+    const nextType = hasOwn(req.body, "type")
+      ? cleanText(req.body?.type).toLowerCase()
+      : cleanText(current.type).toLowerCase();
+    const nextDescription = hasOwn(req.body, "description")
+      ? cleanText(req.body?.description) || null
+      : current.description;
+    const nextStartAt = hasOwn(req.body, "start_at")
+      ? parseDateTimeInput(req.body?.start_at)
+      : parseDateTimeInput(current.start_at);
+    const nextEndAt = hasOwn(req.body, "end_at")
+      ? parseDateTimeInput(req.body?.end_at)
+      : parseDateTimeInput(current.end_at);
+    const nextStatus = hasOwn(req.body, "status")
+      ? cleanText(req.body?.status).toLowerCase()
+      : cleanText(current.status).toLowerCase();
+    const nextPriority = hasOwn(req.body, "priority")
+      ? cleanText(req.body?.priority).toLowerCase()
+      : cleanText(current.priority).toLowerCase();
+
+    if (!nextTitle) {
+      return res.status(400).json({ error: "title es obligatorio." });
+    }
+
+    if (!agendaTypes.has(nextType)) {
+      return res.status(400).json({ error: "type invalido." });
+    }
+
+    if (!nextStartAt) {
+      return res.status(400).json({ error: "start_at debe ser fecha valida." });
+    }
+
+    if (hasOwn(req.body, "end_at") && req.body?.end_at !== null && req.body?.end_at !== "" && !nextEndAt) {
+      return res.status(400).json({ error: "end_at debe ser fecha valida." });
+    }
+
+    if (nextEndAt && nextEndAt < nextStartAt) {
+      return res.status(400).json({ error: "end_at no puede ser menor que start_at." });
+    }
+
+    if (!agendaStatuses.has(nextStatus)) {
+      return res.status(400).json({ error: "status invalido." });
+    }
+
+    if (!agendaPriorities.has(nextPriority)) {
+      return res.status(400).json({ error: "priority invalido." });
+    }
+
+    const { rows } = await pool.query(
+      `UPDATE agenda_events
+       SET
+         title = $1,
+         type = $2,
+         description = $3,
+         start_at = $4,
+         end_at = $5,
+         status = $6,
+         priority = $7,
+         updated_at = NOW()
+       WHERE id = $8
+         AND client_id = $9
+       RETURNING id, client_id, created_by_user_id, title, type, description, start_at, end_at, status, priority, created_at, updated_at`,
+      [nextTitle, nextType, nextDescription, nextStartAt, nextEndAt, nextStatus, nextPriority, eventId, client.id]
+    );
+
+    return res.json({ event: rows[0] });
+  } catch (e) {
+    if (e?.status) {
+      return res.status(e.status).json({ error: e.message });
+    }
+
+    console.error("agenda update error:", e);
+    return res.status(500).json({ error: "Error de servidor" });
+  }
+});
+
+app.delete("/api/clients/:slug/agenda/:eventId", requireAuth, async (req, res) => {
+  const slug = cleanText(req.params?.slug);
+  const eventId = parseId(req.params?.eventId);
+  if (!eventId) {
+    return res.status(400).json({ error: "eventId invalido." });
+  }
+
+  try {
+    const client = await resolveClientAccessBySlug(pool, req.user, slug);
+    const { rows } = await pool.query(
+      `DELETE FROM agenda_events
+       WHERE id = $1
+         AND client_id = $2
+       RETURNING id`,
+      [eventId, client.id]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ error: "Evento no encontrado." });
+    }
+
+    return res.json({ ok: true, event_id: eventId });
+  } catch (e) {
+    if (e?.status) {
+      return res.status(e.status).json({ error: e.message });
+    }
+
+    console.error("agenda delete error:", e);
+    return res.status(500).json({ error: "Error de servidor" });
+  }
+});
+
+app.patch("/api/clients/:slug/agenda/:eventId/status", requireAuth, async (req, res) => {
+  const slug = cleanText(req.params?.slug);
+  const eventId = parseId(req.params?.eventId);
+  const nextStatus = cleanText(req.body?.status).toLowerCase();
+
+  if (!eventId) {
+    return res.status(400).json({ error: "eventId invalido." });
+  }
+
+  if (!agendaStatuses.has(nextStatus)) {
+    return res.status(400).json({ error: "status invalido." });
+  }
+
+  try {
+    const client = await resolveClientAccessBySlug(pool, req.user, slug);
+    const { rows } = await pool.query(
+      `UPDATE agenda_events
+       SET
+         status = $1,
+         updated_at = NOW()
+       WHERE id = $2
+         AND client_id = $3
+       RETURNING id, client_id, created_by_user_id, title, type, description, start_at, end_at, status, priority, created_at, updated_at`,
+      [nextStatus, eventId, client.id]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ error: "Evento no encontrado." });
+    }
+
+    return res.json({ event: rows[0] });
+  } catch (e) {
+    if (e?.status) {
+      return res.status(e.status).json({ error: e.message });
+    }
+
+    console.error("agenda status update error:", e);
+    return res.status(500).json({ error: "Error de servidor" });
   }
 });
 

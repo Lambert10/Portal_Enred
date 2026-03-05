@@ -51,3 +51,13 @@ export function apiDelete(path) {
     method: "DELETE",
   });
 }
+
+export function apiPatch(path, body) {
+  return apiRequest(path, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body || {}),
+  });
+}
