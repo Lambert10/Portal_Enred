@@ -1268,7 +1268,7 @@ app.get("/api/clients/:slug/jira/issues", requireAuth, async (req, res) => {
     const jql = `project = "${connection.project_key}" ORDER BY updated DESC`;
     const { data } = await jiraApiRequest(pool, connection, {
       method: "POST",
-      path: "/search",
+      path: "/search/jql",
       body: {
         jql,
         maxResults,
