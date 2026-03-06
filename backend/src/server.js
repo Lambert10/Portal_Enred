@@ -462,7 +462,10 @@ async function jiraApiRequest(dbClient, connection, { method = "GET", path, body
   }
 
   if (!response.ok) {
-    throw createHttpError(502, extractJiraApiError(data, `Jira API error (${response.status}).`));
+    const upstreamStatus = Number(response.status || 500);
+    const passthroughStatuses = new Set([400, 401, 403, 404, 409, 429]);
+    const status = passthroughStatuses.has(upstreamStatus) ? upstreamStatus : 502;
+    throw createHttpError(status, extractJiraApiError(data, `Jira API error (${response.status}).`));
   }
 
   return { data, connection: liveConnection };
@@ -1266,15 +1269,35 @@ app.get("/api/clients/:slug/jira/issues", requireAuth, async (req, res) => {
     }
 
     const jql = `project = "${connection.project_key}" ORDER BY updated DESC`;
-    const { data } = await jiraApiRequest(pool, connection, {
-      method: "POST",
-      path: "/search/jql",
-      body: {
-        jql,
-        maxResults,
-        fields: ["summary", "description", "status", "issuetype", "priority", "assignee", "updated", "created"],
-      },
-    });
+    const fields = ["summary", "description", "status", "issuetype", "priority", "assignee", "updated", "created"];
+    const searchParams = new URLSearchParams();
+    searchParams.set("jql", jql);
+    searchParams.set("maxResults", String(maxResults));
+    for (const field of fields) {
+      searchParams.append("fields", field);
+    }
+
+    let data;
+    try {
+      const getResponse = await jiraApiRequest(pool, connection, {
+        method: "GET",
+        path: `/search/jql?${searchParams.toString()}`,
+      });
+      data = getResponse.data;
+    } catch (getErr) {
+      // Fallback defensivo por variaciones de rollout de Atlassian en search/jql.
+      const postResponse = await jiraApiRequest(pool, connection, {
+        method: "POST",
+        path: "/search/jql",
+        body: {
+          jql,
+          maxResults,
+          fields,
+        },
+      });
+      data = postResponse.data;
+      if (!data) throw getErr;
+    }
 
     const items = Array.isArray(data?.issues) ? data.issues.map(mapJiraIssue) : [];
     return res.json({
