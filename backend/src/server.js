@@ -8,11 +8,12 @@ import { requireAuth, requireAdmin } from "./middlewares/requireAuth.js";
 
 const app = express();
 const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-const validRoles = new Set(["admin", "user"]);
+const validRoles = new Set(["admin", "editor", "viewer", "user"]);
 const passwordMinLength = 8;
 const agendaTypes = new Set(["actividad", "hito", "compromiso"]);
 const agendaStatuses = new Set(["pendiente", "en_progreso", "completado", "cancelado"]);
 const agendaPriorities = new Set(["baja", "media", "alta"]);
+const jiraScopes = ["offline_access", "read:jira-work", "write:jira-work", "read:jira-user"];
 
 function getCorsOrigins() {
   const raw = process.env.CORS_ORIGIN;
@@ -176,6 +177,311 @@ async function resolveClientAccessBySlug(dbClient, user, slug) {
   }
 
   return client;
+}
+
+function getPortalRole(rawRole) {
+  const role = cleanText(rawRole).toLowerCase();
+  if (role === "admin") return "admin";
+  if (role === "editor") return "editor";
+  return "viewer";
+}
+
+function canJiraWrite(portalRole) {
+  return portalRole === "admin" || portalRole === "editor";
+}
+
+function canJiraConnect(portalRole) {
+  return portalRole === "admin";
+}
+
+function getAtlassianConfig() {
+  const clientId = cleanText(process.env.ATLASSIAN_CLIENT_ID);
+  const clientSecret = cleanText(process.env.ATLASSIAN_CLIENT_SECRET);
+  const redirectUri = cleanText(process.env.ATLASSIAN_REDIRECT_URI);
+
+  if (!clientId || !clientSecret || !redirectUri) {
+    throw createHttpError(
+      500,
+      "Faltan variables ATLASSIAN_CLIENT_ID, ATLASSIAN_CLIENT_SECRET o ATLASSIAN_REDIRECT_URI."
+    );
+  }
+
+  return { clientId, clientSecret, redirectUri };
+}
+
+function normalizeProjectKey(value) {
+  return cleanText(value).toUpperCase();
+}
+
+function normalizeOptionalUrl(value) {
+  const raw = cleanText(value);
+  if (!raw) return null;
+  if (!isValidHttpUrl(raw)) return null;
+  return raw.replace(/\/+$/, "");
+}
+
+function buildJiraState(payload) {
+  if (!process.env.JWT_SECRET) {
+    throw createHttpError(500, "JWT_SECRET no configurado.");
+  }
+
+  return jwt.sign({ kind: "jira_oauth", ...payload }, process.env.JWT_SECRET, {
+    expiresIn: "10m",
+  });
+}
+
+function parseJiraState(value) {
+  if (!process.env.JWT_SECRET) {
+    throw createHttpError(500, "JWT_SECRET no configurado.");
+  }
+
+  try {
+    const payload = jwt.verify(String(value || ""), process.env.JWT_SECRET);
+    if (payload?.kind !== "jira_oauth") {
+      throw createHttpError(400, "State OAuth invalido.");
+    }
+    return payload;
+  } catch {
+    throw createHttpError(400, "State OAuth invalido o expirado.");
+  }
+}
+
+function toJiraAdf(value) {
+  const text = cleanText(value);
+  return {
+    type: "doc",
+    version: 1,
+    content: [
+      {
+        type: "paragraph",
+        content: text ? [{ type: "text", text }] : [],
+      },
+    ],
+  };
+}
+
+function jiraAdfToText(node) {
+  if (!node) return "";
+  if (typeof node === "string") return node;
+  if (Array.isArray(node)) return node.map((item) => jiraAdfToText(item)).join("");
+  if (typeof node !== "object") return "";
+  const ownText = typeof node.text === "string" ? node.text : "";
+  const childText = jiraAdfToText(node.content);
+  return `${ownText}${childText}`;
+}
+
+function computeTokenExpiresAt(expiresInSeconds) {
+  const safeSeconds = Math.max(Number(expiresInSeconds || 3600) - 60, 30);
+  return new Date(Date.now() + safeSeconds * 1000).toISOString();
+}
+
+function extractJiraApiError(data, fallbackMessage) {
+  const messages = Array.isArray(data?.errorMessages) ? data.errorMessages : [];
+  const fieldErrors = data?.errors && typeof data.errors === "object" ? Object.values(data.errors) : [];
+  const message = [data?.error, ...messages, ...fieldErrors].filter(Boolean).join(" | ");
+  return message || fallbackMessage;
+}
+
+async function exchangeJiraCodeForTokens(code) {
+  const { clientId, clientSecret, redirectUri } = getAtlassianConfig();
+  const response = await fetch("https://auth.atlassian.com/oauth/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      grant_type: "authorization_code",
+      client_id: clientId,
+      client_secret: clientSecret,
+      code: String(code || ""),
+      redirect_uri: redirectUri,
+    }),
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw createHttpError(502, extractJiraApiError(data, "No se pudo intercambiar code por token."));
+  }
+
+  return data;
+}
+
+async function refreshJiraTokens(refreshToken) {
+  const { clientId, clientSecret } = getAtlassianConfig();
+  const response = await fetch("https://auth.atlassian.com/oauth/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      grant_type: "refresh_token",
+      client_id: clientId,
+      client_secret: clientSecret,
+      refresh_token: String(refreshToken || ""),
+    }),
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw createHttpError(502, extractJiraApiError(data, "No se pudo refrescar token Jira."));
+  }
+
+  return data;
+}
+
+async function getAccessibleJiraResources(accessToken) {
+  const response = await fetch("https://api.atlassian.com/oauth/token/accessible-resources", {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+    },
+  });
+
+  const data = await response.json().catch(() => []);
+  if (!response.ok) {
+    throw createHttpError(502, extractJiraApiError(data, "No se pudieron obtener recursos accesibles Jira."));
+  }
+
+  return Array.isArray(data) ? data : [];
+}
+
+async function getJiraConnectionByClientId(dbClient, clientId) {
+  const { rows } = await dbClient.query(
+    `SELECT id, client_id, jira_site_url, cloud_id, project_key, access_token, refresh_token, token_expires_at, created_at, updated_at
+     FROM jira_connections
+     WHERE client_id = $1
+     LIMIT 1`,
+    [clientId]
+  );
+  return rows[0] || null;
+}
+
+async function saveJiraConnection(dbClient, {
+  clientId,
+  jiraSiteUrl,
+  cloudId,
+  projectKey,
+  accessToken,
+  refreshToken,
+  expiresAt,
+}) {
+  const { rows } = await dbClient.query(
+    `INSERT INTO jira_connections (
+       client_id,
+       jira_site_url,
+       cloud_id,
+       project_key,
+       access_token,
+       refresh_token,
+       token_expires_at
+     )
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     ON CONFLICT (client_id) DO UPDATE
+     SET
+       jira_site_url = EXCLUDED.jira_site_url,
+       cloud_id = EXCLUDED.cloud_id,
+       project_key = EXCLUDED.project_key,
+       access_token = EXCLUDED.access_token,
+       refresh_token = EXCLUDED.refresh_token,
+       token_expires_at = EXCLUDED.token_expires_at,
+       updated_at = NOW()
+     RETURNING id, client_id, jira_site_url, cloud_id, project_key, access_token, refresh_token, token_expires_at, created_at, updated_at`,
+    [clientId, jiraSiteUrl, cloudId, projectKey, accessToken, refreshToken, expiresAt]
+  );
+  return rows[0];
+}
+
+async function ensureFreshJiraConnection(dbClient, connection) {
+  if (!connection) return null;
+
+  const expiresAtMs = connection.token_expires_at ? new Date(connection.token_expires_at).getTime() : 0;
+  if (Number.isFinite(expiresAtMs) && expiresAtMs > Date.now() + 30_000) {
+    return connection;
+  }
+
+  if (!connection.refresh_token) {
+    throw createHttpError(401, "Conexion Jira expirada. Requiere reconexion.");
+  }
+
+  const refreshed = await refreshJiraTokens(connection.refresh_token);
+  const nextAccessToken = cleanText(refreshed?.access_token);
+  const nextRefreshToken = cleanText(refreshed?.refresh_token) || connection.refresh_token;
+  if (!nextAccessToken) {
+    throw createHttpError(502, "Respuesta invalida al refrescar token Jira.");
+  }
+
+  const { rows } = await dbClient.query(
+    `UPDATE jira_connections
+     SET
+       access_token = $1,
+       refresh_token = $2,
+       token_expires_at = $3,
+       updated_at = NOW()
+     WHERE id = $4
+     RETURNING id, client_id, jira_site_url, cloud_id, project_key, access_token, refresh_token, token_expires_at, created_at, updated_at`,
+    [nextAccessToken, nextRefreshToken, computeTokenExpiresAt(refreshed?.expires_in), connection.id]
+  );
+
+  return rows[0];
+}
+
+async function jiraApiRequest(dbClient, connection, { method = "GET", path, body }) {
+  let liveConnection = await ensureFreshJiraConnection(dbClient, connection);
+  if (!liveConnection) {
+    throw createHttpError(404, "Jira no conectado para este cliente.");
+  }
+
+  const base = `https://api.atlassian.com/ex/jira/${encodeURIComponent(liveConnection.cloud_id)}/rest/api/3`;
+  const url = `${base}${path.startsWith("/") ? path : `/${path}`}`;
+
+  const makeRequest = async (accessToken) =>
+    fetch(url, {
+      method,
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: "application/json",
+        ...(body ? { "Content-Type": "application/json" } : {}),
+      },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+
+  let response = await makeRequest(liveConnection.access_token);
+
+  if (response.status === 401 && liveConnection.refresh_token) {
+    liveConnection = await ensureFreshJiraConnection(dbClient, {
+      ...liveConnection,
+      token_expires_at: new Date(0).toISOString(),
+    });
+    response = await makeRequest(liveConnection.access_token);
+  }
+
+  const text = await response.text();
+  let data = {};
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = { error: text };
+    }
+  }
+
+  if (!response.ok) {
+    throw createHttpError(502, extractJiraApiError(data, `Jira API error (${response.status}).`));
+  }
+
+  return { data, connection: liveConnection };
+}
+
+function mapJiraIssue(issue) {
+  const fields = issue?.fields || {};
+  return {
+    key: issue?.key,
+    summary: fields?.summary || "",
+    description: jiraAdfToText(fields?.description),
+    status: fields?.status?.name || "",
+    issue_type: fields?.issuetype?.name || "",
+    priority: fields?.priority?.name || "",
+    assignee: fields?.assignee?.displayName || null,
+    updated: fields?.updated || null,
+    created: fields?.created || null,
+    raw: issue,
+  };
 }
 
 app.use(express.json());
@@ -466,7 +772,7 @@ app.post("/api/admin/users", async (req, res) => {
   }
 
   if (!validRoles.has(role)) {
-    return res.status(400).json({ error: "Role invalido. Usa admin o user." });
+    return res.status(400).json({ error: "Role invalido. Usa admin, editor, viewer o user." });
   }
 
   if (password.length < passwordMinLength) {
@@ -615,7 +921,7 @@ app.put("/api/admin/users/:id", async (req, res) => {
     if (hasRole) {
       nextRole = normalizeSlug(req.body?.role);
       if (!validRoles.has(nextRole)) {
-        throw createHttpError(400, "Role invalido. Usa admin o user.");
+        throw createHttpError(400, "Role invalido. Usa admin, editor, viewer o user.");
       }
     }
 
@@ -771,6 +1077,381 @@ app.get("/api/clients", requireAuth, async (req, res) => {
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: "Error de servidor" });
+  }
+});
+
+app.get("/api/clients/:slug/jira/connect-url", requireAuth, async (req, res) => {
+  const slug = cleanText(req.params?.slug);
+  const projectKey = normalizeProjectKey(req.query?.project_key);
+  const jiraSiteUrlRaw = cleanText(req.query?.jira_site_url);
+  const jiraSiteUrl = normalizeOptionalUrl(jiraSiteUrlRaw);
+  const portalRole = getPortalRole(req.user?.role);
+
+  if (!canJiraConnect(portalRole)) {
+    return res.status(403).json({ error: "Solo admin puede conectar Jira." });
+  }
+
+  if (!projectKey) {
+    return res.status(400).json({ error: "project_key es obligatorio." });
+  }
+
+  if (!/^[A-Z][A-Z0-9_]*$/.test(projectKey)) {
+    return res.status(400).json({ error: "project_key invalido." });
+  }
+
+  if (jiraSiteUrlRaw && !jiraSiteUrl) {
+    return res.status(400).json({ error: "jira_site_url invalido." });
+  }
+
+  try {
+    const client = await resolveClientAccessBySlug(pool, req.user, slug);
+    const { clientId, redirectUri } = getAtlassianConfig();
+    // Scopes 3LO Jira Cloud: ajusta en Atlassian Developer Console segun permisos requeridos.
+    const scope = jiraScopes.join(" ");
+    const state = buildJiraState({
+      clientId: client.id,
+      clientSlug: client.slug,
+      userId: req.user.userId,
+      projectKey,
+      jiraSiteUrl,
+    });
+
+    const params = new URLSearchParams({
+      audience: "api.atlassian.com",
+      client_id: clientId,
+      scope,
+      redirect_uri: redirectUri,
+      response_type: "code",
+      prompt: "consent",
+      state,
+    });
+
+    return res.json({
+      url: `https://auth.atlassian.com/authorize?${params.toString()}`,
+    });
+  } catch (e) {
+    if (e?.status) {
+      return res.status(e.status).json({ error: e.message });
+    }
+
+    console.error("jira connect-url error:", e);
+    return res.status(500).json({ error: "Error de servidor" });
+  }
+});
+
+app.get("/api/integrations/jira/callback", requireAuth, async (req, res) => {
+  const code = cleanText(req.query?.code);
+  const state = cleanText(req.query?.state);
+  const portalRole = getPortalRole(req.user?.role);
+
+  if (!canJiraConnect(portalRole)) {
+    return res.status(403).json({ error: "Solo admin puede conectar Jira." });
+  }
+
+  if (!code || !state) {
+    return res.status(400).json({ error: "code y state son obligatorios." });
+  }
+
+  try {
+    const parsedState = parseJiraState(state);
+    if (Number(parsedState?.userId) !== Number(req.user.userId)) {
+      return res.status(403).json({ error: "State no corresponde al usuario autenticado." });
+    }
+
+    const client = await resolveClientAccessBySlug(pool, req.user, parsedState.clientSlug);
+    if (Number(client.id) !== Number(parsedState.clientId)) {
+      return res.status(400).json({ error: "State invalido para cliente." });
+    }
+
+    const tokenData = await exchangeJiraCodeForTokens(code);
+    const accessToken = cleanText(tokenData?.access_token);
+    const refreshToken = cleanText(tokenData?.refresh_token);
+    if (!accessToken || !refreshToken) {
+      throw createHttpError(502, "Respuesta invalida de OAuth Jira.");
+    }
+
+    const resources = await getAccessibleJiraResources(accessToken);
+    if (!resources.length) {
+      throw createHttpError(400, "No se encontraron recursos Jira accesibles.");
+    }
+
+    const stateSiteUrl = normalizeOptionalUrl(parsedState?.jiraSiteUrl);
+    const matchedByUrl = stateSiteUrl
+      ? resources.find((item) => normalizeOptionalUrl(item?.url) === stateSiteUrl)
+      : null;
+    const selectedResource = matchedByUrl || resources[0];
+    if (!selectedResource?.id) {
+      throw createHttpError(400, "No se pudo determinar cloud_id de Jira.");
+    }
+
+    const cloudId = cleanText(selectedResource?.id);
+    const nextProjectKey = normalizeProjectKey(parsedState?.projectKey);
+    if (!cloudId || !nextProjectKey) {
+      throw createHttpError(400, "No se pudo completar configuracion Jira.");
+    }
+
+    const connection = await saveJiraConnection(pool, {
+      clientId: client.id,
+      jiraSiteUrl: cleanText(selectedResource?.url) || stateSiteUrl || "https://atlassian.net",
+      cloudId,
+      projectKey: nextProjectKey,
+      accessToken,
+      refreshToken,
+      expiresAt: computeTokenExpiresAt(tokenData?.expires_in),
+    });
+
+    return res.json({
+      ok: true,
+      client_slug: client.slug,
+      connection: {
+        jira_site_url: connection.jira_site_url,
+        cloud_id: connection.cloud_id,
+        project_key: connection.project_key,
+        updated_at: connection.updated_at,
+      },
+    });
+  } catch (e) {
+    if (e?.status) {
+      return res.status(e.status).json({ error: e.message });
+    }
+
+    console.error("jira callback error:", e);
+    return res.status(500).json({ error: "Error de servidor" });
+  }
+});
+
+app.get("/api/clients/:slug/jira/meta", requireAuth, async (req, res) => {
+  const slug = cleanText(req.params?.slug);
+
+  try {
+    const client = await resolveClientAccessBySlug(pool, req.user, slug);
+    const portalRole = getPortalRole(req.user?.role);
+    const connection = await getJiraConnectionByClientId(pool, client.id);
+
+    return res.json({
+      client,
+      role: portalRole,
+      connected: Boolean(connection),
+      can_connect: canJiraConnect(portalRole),
+      can_write: canJiraWrite(portalRole),
+      connection: connection
+        ? {
+            jira_site_url: connection.jira_site_url,
+            cloud_id: connection.cloud_id,
+            project_key: connection.project_key,
+            updated_at: connection.updated_at,
+          }
+        : null,
+    });
+  } catch (e) {
+    if (e?.status) {
+      return res.status(e.status).json({ error: e.message });
+    }
+
+    console.error("jira meta error:", e);
+    return res.status(500).json({ error: "Error de servidor" });
+  }
+});
+
+app.get("/api/clients/:slug/jira/issues", requireAuth, async (req, res) => {
+  const slug = cleanText(req.params?.slug);
+  const maxResultsRaw = Number.parseInt(String(req.query?.maxResults || "30"), 10);
+  const maxResults = Number.isInteger(maxResultsRaw) ? Math.min(Math.max(maxResultsRaw, 1), 100) : 30;
+
+  try {
+    const client = await resolveClientAccessBySlug(pool, req.user, slug);
+    const connection = await getJiraConnectionByClientId(pool, client.id);
+    if (!connection) {
+      return res.status(404).json({ error: "Jira no conectado para este cliente." });
+    }
+
+    const jql = `project = "${connection.project_key}" ORDER BY updated DESC`;
+    const { data } = await jiraApiRequest(pool, connection, {
+      method: "POST",
+      path: "/search",
+      body: {
+        jql,
+        maxResults,
+        fields: ["summary", "description", "status", "issuetype", "priority", "assignee", "updated", "created"],
+      },
+    });
+
+    const items = Array.isArray(data?.issues) ? data.issues.map(mapJiraIssue) : [];
+    return res.json({
+      client,
+      connection: {
+        jira_site_url: connection.jira_site_url,
+        project_key: connection.project_key,
+      },
+      items,
+      total: Number(data?.total || items.length),
+    });
+  } catch (e) {
+    if (e?.status) {
+      return res.status(e.status).json({ error: e.message });
+    }
+
+    console.error("jira issues list error:", e);
+    return res.status(500).json({ error: "Error de servidor" });
+  }
+});
+
+app.post("/api/clients/:slug/jira/issues", requireAuth, async (req, res) => {
+  const slug = cleanText(req.params?.slug);
+  const summary = cleanText(req.body?.summary);
+  const description = cleanText(req.body?.description);
+  const issueType = cleanText(req.body?.issueType || "Task");
+  const priority = cleanText(req.body?.priority);
+  const portalRole = getPortalRole(req.user?.role);
+
+  if (!canJiraWrite(portalRole)) {
+    return res.status(403).json({ error: "No tienes permisos para crear issues." });
+  }
+
+  if (!summary) {
+    return res.status(400).json({ error: "summary es obligatorio." });
+  }
+
+  try {
+    const client = await resolveClientAccessBySlug(pool, req.user, slug);
+    const connection = await getJiraConnectionByClientId(pool, client.id);
+    if (!connection) {
+      return res.status(404).json({ error: "Jira no conectado para este cliente." });
+    }
+
+    const fields = {
+      project: { key: connection.project_key },
+      summary,
+      issuetype: { name: issueType },
+    };
+
+    if (description) {
+      fields.description = toJiraAdf(description);
+    }
+    if (priority) {
+      fields.priority = { name: priority };
+    }
+
+    const created = await jiraApiRequest(pool, connection, {
+      method: "POST",
+      path: "/issue",
+      body: { fields },
+    });
+
+    const issueKey = cleanText(created?.data?.key);
+    if (!issueKey) {
+      throw createHttpError(502, "No se obtuvo key del issue creado.");
+    }
+
+    const issueData = await jiraApiRequest(pool, created.connection, {
+      method: "GET",
+      path: `/issue/${encodeURIComponent(issueKey)}?fields=summary,description,status,issuetype,priority,assignee,updated,created`,
+    });
+
+    return res.status(201).json({ issue: mapJiraIssue(issueData.data) });
+  } catch (e) {
+    if (e?.status) {
+      return res.status(e.status).json({ error: e.message });
+    }
+
+    console.error("jira create issue error:", e);
+    return res.status(500).json({ error: "Error de servidor" });
+  }
+});
+
+app.put("/api/clients/:slug/jira/issues/:issueKey", requireAuth, async (req, res) => {
+  const slug = cleanText(req.params?.slug);
+  const issueKey = cleanText(req.params?.issueKey);
+  const summary = hasOwn(req.body, "summary") ? cleanText(req.body?.summary) : null;
+  const description = hasOwn(req.body, "description") ? cleanText(req.body?.description) : null;
+  const priority = hasOwn(req.body, "priority") ? cleanText(req.body?.priority) : null;
+  const status = hasOwn(req.body, "status") ? cleanText(req.body?.status) : null;
+  const portalRole = getPortalRole(req.user?.role);
+
+  if (!canJiraWrite(portalRole)) {
+    return res.status(403).json({ error: "No tienes permisos para editar issues." });
+  }
+
+  if (!issueKey) {
+    return res.status(400).json({ error: "issueKey invalido." });
+  }
+
+  if (!hasOwn(req.body, "summary") && !hasOwn(req.body, "description") && !hasOwn(req.body, "priority") && !status) {
+    return res.status(400).json({ error: "No hay campos para actualizar." });
+  }
+
+  try {
+    const client = await resolveClientAccessBySlug(pool, req.user, slug);
+    const connection = await getJiraConnectionByClientId(pool, client.id);
+    if (!connection) {
+      return res.status(404).json({ error: "Jira no conectado para este cliente." });
+    }
+
+    const fields = {};
+    if (hasOwn(req.body, "summary")) {
+      if (!summary) {
+        return res.status(400).json({ error: "summary no puede quedar vacio." });
+      }
+      fields.summary = summary;
+    }
+    if (hasOwn(req.body, "description")) {
+      fields.description = toJiraAdf(description);
+    }
+    if (hasOwn(req.body, "priority")) {
+      if (priority) {
+        fields.priority = { name: priority };
+      }
+    }
+
+    if (!Object.keys(fields).length && !status) {
+      return res.status(400).json({ error: "No hay campos validos para actualizar." });
+    }
+
+    let liveConnection = connection;
+    if (Object.keys(fields).length) {
+      const updated = await jiraApiRequest(pool, liveConnection, {
+        method: "PUT",
+        path: `/issue/${encodeURIComponent(issueKey)}`,
+        body: { fields },
+      });
+      liveConnection = updated.connection;
+    }
+
+    if (status) {
+      const transitionsResponse = await jiraApiRequest(pool, liveConnection, {
+        method: "GET",
+        path: `/issue/${encodeURIComponent(issueKey)}/transitions`,
+      });
+      const transitions = Array.isArray(transitionsResponse?.data?.transitions)
+        ? transitionsResponse.data.transitions
+        : [];
+      const target = transitions.find((item) => cleanText(item?.to?.name).toLowerCase() === status.toLowerCase());
+
+      if (!target?.id) {
+        return res.status(400).json({ error: "No existe transicion para el status solicitado." });
+      }
+
+      const transitioned = await jiraApiRequest(pool, transitionsResponse.connection, {
+        method: "POST",
+        path: `/issue/${encodeURIComponent(issueKey)}/transitions`,
+        body: { transition: { id: target.id } },
+      });
+      liveConnection = transitioned.connection;
+    }
+
+    const issueData = await jiraApiRequest(pool, liveConnection, {
+      method: "GET",
+      path: `/issue/${encodeURIComponent(issueKey)}?fields=summary,description,status,issuetype,priority,assignee,updated,created`,
+    });
+
+    return res.json({ issue: mapJiraIssue(issueData.data) });
+  } catch (e) {
+    if (e?.status) {
+      return res.status(e.status).json({ error: e.message });
+    }
+
+    console.error("jira update issue error:", e);
+    return res.status(500).json({ error: "Error de servidor" });
   }
 });
 
@@ -1104,7 +1785,7 @@ app.get("/api/clients/:slug/embed", requireAuth, async (req, res) => {
     }
 
     if (!rows.length) {
-      if (req.user.role === "user") {
+      if (req.user.role !== "admin") {
         const { rows: existsRows } = await pool.query(
           `SELECT 1
            FROM clients

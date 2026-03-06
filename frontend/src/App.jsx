@@ -16,6 +16,9 @@ import AdminClientsList from "./pages/AdminClientsList";
 import AdminClientForm from "./pages/AdminClientForm";
 import AgendaList from "./pages/AgendaList";
 import AgendaClient from "./pages/AgendaClient";
+import JiraList from "./pages/JiraList";
+import JiraClient from "./pages/JiraClient";
+import JiraOAuthCallback from "./pages/JiraOAuthCallback";
 
 export default function App() {
   return (
@@ -37,6 +40,9 @@ export default function App() {
           <Route path="/dashboard/:slug" element={<DashboardClient />} />
           <Route path="/agenda" element={<AgendaList />} />
           <Route path="/agenda/:slug" element={<AgendaClient />} />
+          <Route path="/jira" element={<JiraList />} />
+          <Route path="/jira/callback" element={<JiraOAuthCallback />} />
+          <Route path="/jira/:slug" element={<JiraClient />} />
           <Route
             path="/admin/providers"
             element={

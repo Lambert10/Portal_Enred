@@ -8,6 +8,9 @@
    - `DATABASE_URL`: cadena de conexion a Postgres productivo.
    - `CORS_ORIGIN`: URL de Netlify (ej: `https://tu-frontend.netlify.app`).
    - `JWT_SECRET`: secreto largo para firmar JWT.
+   - `ATLASSIAN_CLIENT_ID`: client ID Jira OAuth 3LO.
+   - `ATLASSIAN_CLIENT_SECRET`: client secret Jira OAuth 3LO.
+   - `ATLASSIAN_REDIRECT_URI`: URL frontend para callback (ej: `https://tu-frontend.netlify.app/jira/callback`).
    - Si usas previews, puedes agregar varias separadas por coma.
 5. Deploy y prueba:
    - `https://tu-backend.onrender.com/health`
@@ -15,7 +18,8 @@
    - `backend/sql/init_clients.sql`
    - `backend/sql/001_auth.sql`
    - `backend/sql/002_agenda.sql`
-   - Si ya tenias el sistema funcionando antes, para esta version basta con ejecutar `002_agenda.sql`.
+   - `backend/sql/003_jira.sql`
+   - Si ya tenias el sistema funcionando antes, para esta version ejecuta `002_agenda.sql` y `003_jira.sql`.
 
 ## 2) Frontend en Netlify
 1. En Netlify, crea sitio desde el mismo repo.

@@ -105,7 +105,7 @@ export default function AdminUserForm() {
       return;
     }
 
-    if (!["admin", "user"].includes(payloadBase.role)) {
+    if (!["admin", "editor", "viewer", "user"].includes(payloadBase.role)) {
       setErr("Role invalido.");
       return;
     }
@@ -201,6 +201,8 @@ export default function AdminUserForm() {
                 onChange={(e) => setForm((prev) => ({ ...prev, role: e.target.value }))}
               >
                 <option value="user">user</option>
+                <option value="viewer">viewer</option>
+                <option value="editor">editor</option>
                 <option value="admin">admin</option>
               </select>
             </div>

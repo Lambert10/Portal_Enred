@@ -435,6 +435,36 @@
   gap: 14px;
 }
 
+.jiraWrap{
+  display: grid;
+  gap: 14px;
+}
+
+.jiraConnectBox{
+  margin-top: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.jiraConnectForm{
+  max-width: 640px;
+}
+
+.jiraMetaRow{
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.jiraFilters{
+  margin-top: 12px;
+  display: grid;
+  gap: 8px;
+  max-width: 440px;
+}
+
 .agendaFilters{
   margin-top: 12px;
   display: grid;

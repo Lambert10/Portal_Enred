@@ -55,6 +55,11 @@ export default function AppLayout() {
               <span className="navMeta">Calendario</span>
             </NavLink>
 
+            <NavLink to="/jira" className={({ isActive }) => `navLink ${isActive ? "navLinkActive" : ""}`}>
+              <span>Jira</span>
+              <span className="navMeta">Issues</span>
+            </NavLink>
+
             {isAdmin && (
               <NavLink
                 to="/admin/providers"
