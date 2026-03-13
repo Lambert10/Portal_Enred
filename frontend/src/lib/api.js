@@ -46,10 +46,19 @@ export function apiPut(path, body) {
   });
 }
 
-export function apiDelete(path) {
-  return apiRequest(path, {
+export function apiDelete(path, body) {
+  const options = {
     method: "DELETE",
-  });
+  };
+
+  if (body !== undefined) {
+    options.headers = {
+      "Content-Type": "application/json",
+    };
+    options.body = JSON.stringify(body || {});
+  }
+
+  return apiRequest(path, options);
 }
 
 export function apiPatch(path, body) {
