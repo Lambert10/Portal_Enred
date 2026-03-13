@@ -8,6 +8,9 @@ export default function AdminClientsList() {
   const [err, setErr] = useState("");
   const [ok, setOk] = useState("");
   const [busyId, setBusyId] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteConfirmName, setDeleteConfirmName] = useState("");
+  const [deleteErr, setDeleteErr] = useState("");
 
   async function loadClients() {
     setLoading(true);
@@ -48,39 +51,48 @@ export default function AdminClientsList() {
     }
   }
 
-  async function onPermanentDelete(client) {
+  function openPermanentDeleteModal(client) {
     const expectedName = String(client?.name || "");
     if (!expectedName.trim()) {
       setErr("No se puede confirmar eliminacion: cliente sin nombre valido.");
       return;
     }
 
-    const typedName = window.prompt(
-      `Eliminar cliente "${expectedName}" de forma definitiva.\nEsta accion borrara sus accesos y datos asociados.\n\nEscribe exactamente el nombre (incluyendo mayusculas y espacios) para confirmar:`,
-      ""
-    );
+    setDeleteTarget(client);
+    setDeleteConfirmName("");
+    setDeleteErr("");
+  }
 
-    if (typedName === null) return;
+  function closePermanentDeleteModal() {
+    if (busyId !== null) return;
+    setDeleteTarget(null);
+    setDeleteConfirmName("");
+    setDeleteErr("");
+  }
 
-    if (typedName !== expectedName) {
-      setErr("El nombre ingresado no coincide. Eliminacion cancelada.");
-      setOk("");
+  async function onPermanentDelete() {
+    if (!deleteTarget) return;
+
+    const expectedName = String(deleteTarget?.name || "");
+    if (deleteConfirmName !== expectedName) {
+      setDeleteErr("El nombre ingresado no coincide exactamente.");
       return;
     }
 
-    if (!window.confirm(`Confirmas eliminar definitivamente al cliente "${expectedName}"?`)) return;
-
-    setBusyId(client.id);
+    setBusyId(deleteTarget.id);
+    setDeleteErr("");
     setErr("");
     setOk("");
     try {
-      await apiDelete(`/api/admin/clients/${client.id}/permanent`, {
-        confirm_name: typedName,
+      await apiDelete(`/api/admin/clients/${deleteTarget.id}/permanent`, {
+        confirm_name: deleteConfirmName,
       });
       setOk(`Cliente ${expectedName} eliminado definitivamente.`);
+      setDeleteTarget(null);
+      setDeleteConfirmName("");
       await loadClients();
     } catch (e) {
-      setErr(e.message || "No se pudo eliminar cliente.");
+      setDeleteErr(e.message || "No se pudo eliminar cliente.");
     } finally {
       setBusyId(null);
     }
@@ -150,7 +162,7 @@ export default function AdminClientsList() {
                         <button
                           type="button"
                           className="adminBtnDanger"
-                          onClick={() => onPermanentDelete(client)}
+                          onClick={() => openPermanentDeleteModal(client)}
                           disabled={busyId === client.id}
                         >
                           Eliminar
@@ -166,6 +178,70 @@ export default function AdminClientsList() {
           <div className="state">No hay clientes creados.</div>
         )}
       </section>
+
+      {deleteTarget && (
+        <div className="agendaModalOverlay" onClick={busyId !== null ? undefined : closePermanentDeleteModal}>
+          <section className="agendaModalCard" onClick={(e) => e.stopPropagation()}>
+            <div className="adminUsersHead">
+              <div>
+                <h3 className="adminTitle">Eliminar cliente</h3>
+                <p className="adminSub">
+                  Esta accion es permanente. Escribe el nombre exacto para confirmar:
+                </p>
+              </div>
+              <button
+                type="button"
+                className="adminBtnGhost"
+                onClick={closePermanentDeleteModal}
+                disabled={busyId !== null}
+              >
+                Cerrar
+              </button>
+            </div>
+
+            <p className="adminHint">
+              Nombre esperado: <strong>{String(deleteTarget.name || "")}</strong>
+            </p>
+
+            {deleteErr && <div className="state error">Error: {deleteErr}</div>}
+
+            <form
+              className="adminForm adminUserForm"
+              onSubmit={(e) => {
+                e.preventDefault();
+                onPermanentDelete();
+              }}
+            >
+              <label className="adminLabel" htmlFor="confirm-delete-client-name">
+                Confirmacion por nombre exacto
+              </label>
+              <input
+                id="confirm-delete-client-name"
+                className="adminInput"
+                value={deleteConfirmName}
+                onChange={(e) => setDeleteConfirmName(e.target.value)}
+                placeholder="Escribe el nombre exacto"
+                autoFocus
+                disabled={busyId !== null}
+              />
+
+              <div className="adminActions">
+                <button type="submit" className="adminBtnDanger" disabled={busyId !== null}>
+                  {busyId !== null ? "Eliminando..." : "Eliminar definitivamente"}
+                </button>
+                <button
+                  type="button"
+                  className="adminBtnGhost"
+                  onClick={closePermanentDeleteModal}
+                  disabled={busyId !== null}
+                >
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
     </div>
   );
 }
