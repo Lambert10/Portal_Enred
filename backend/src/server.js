@@ -100,6 +100,28 @@ function hasOwn(obj, key) {
   return Object.prototype.hasOwnProperty.call(obj || {}, key);
 }
 
+function resolveDashboardUrlInput(payload) {
+  if (hasOwn(payload, "dashboard_url")) {
+    return cleanText(payload?.dashboard_url);
+  }
+  return cleanText(payload?.embed_url);
+}
+
+function withDashboardUrl(row) {
+  if (!row || typeof row !== "object") return row;
+  const dashboardUrl = cleanText(row.dashboard_url || row.embed_url);
+  return {
+    ...row,
+    embed_url: dashboardUrl,
+    dashboard_url: dashboardUrl,
+  };
+}
+
+function withDashboardUrls(rows) {
+  if (!Array.isArray(rows)) return [];
+  return rows.map((row) => withDashboardUrl(row));
+}
+
 function createHttpError(status, message) {
   const err = new Error(message);
   err.status = status;
@@ -577,7 +599,7 @@ app.get("/api/admin/clients", async (req, res) => {
        ORDER BY created_at DESC, id DESC`
     );
 
-    return res.json({ items: rows });
+    return res.json({ items: withDashboardUrls(rows) });
   } catch (e) {
     console.error("admin clients list error:", e);
     return res.status(500).json({ error: "Error de servidor" });
@@ -603,7 +625,7 @@ app.get("/api/admin/clients/:id", async (req, res) => {
       return res.status(404).json({ error: "Cliente no encontrado." });
     }
 
-    return res.json({ client: rows[0] });
+    return res.json({ client: withDashboardUrl(rows[0]) });
   } catch (e) {
     console.error("admin clients detail error:", e);
     return res.status(500).json({ error: "Error de servidor" });
@@ -613,7 +635,7 @@ app.get("/api/admin/clients/:id", async (req, res) => {
 app.post("/api/admin/clients", async (req, res) => {
   const slug = normalizeSlug(req.body?.slug);
   const name = cleanText(req.body?.name);
-  const embedUrl = cleanText(req.body?.embed_url);
+  const dashboardUrl = resolveDashboardUrlInput(req.body);
   const isActive = hasOwn(req.body, "is_active") ? req.body?.is_active : true;
 
   if (!slugPattern.test(slug)) {
@@ -626,8 +648,10 @@ app.post("/api/admin/clients", async (req, res) => {
     return res.status(400).json({ error: "El nombre es obligatorio." });
   }
 
-  if (!isValidHttpUrl(embedUrl)) {
-    return res.status(400).json({ error: "embed_url debe ser una URL http/https valida." });
+  if (!isValidHttpUrl(dashboardUrl)) {
+    return res.status(400).json({
+      error: "dashboard_url (o embed_url) debe ser una URL http/https valida.",
+    });
   }
 
   if (typeof isActive !== "boolean") {
@@ -643,10 +667,10 @@ app.post("/api/admin/clients", async (req, res) => {
       `INSERT INTO clients (slug, name, embed_url, is_active)
        VALUES ($1, $2, $3, $4)
        RETURNING id, slug, name, embed_url, is_active, created_at`,
-      [slug, name, embedUrl, isActive]
+      [slug, name, dashboardUrl, isActive]
     );
 
-    return res.status(201).json({ client: rows[0] });
+    return res.status(201).json({ client: withDashboardUrl(rows[0]) });
   } catch (e) {
     if (e?.code === "23505") {
       return res.status(409).json({ error: "El slug ya existe." });
@@ -663,20 +687,28 @@ app.put("/api/admin/clients/:id", async (req, res) => {
     return res.status(400).json({ error: "ID de cliente invalido." });
   }
 
-  if (!hasOwn(req.body, "name") || !hasOwn(req.body, "embed_url") || !hasOwn(req.body, "is_active")) {
-    return res.status(400).json({ error: "name, embed_url e is_active son obligatorios." });
+  if (
+    !hasOwn(req.body, "name") ||
+    !(hasOwn(req.body, "dashboard_url") || hasOwn(req.body, "embed_url")) ||
+    !hasOwn(req.body, "is_active")
+  ) {
+    return res.status(400).json({
+      error: "name, dashboard_url (o embed_url) e is_active son obligatorios.",
+    });
   }
 
   const name = cleanText(req.body?.name);
-  const embedUrl = cleanText(req.body?.embed_url);
+  const dashboardUrl = resolveDashboardUrlInput(req.body);
   const isActive = req.body?.is_active;
 
   if (!name) {
     return res.status(400).json({ error: "El nombre es obligatorio." });
   }
 
-  if (!isValidHttpUrl(embedUrl)) {
-    return res.status(400).json({ error: "embed_url debe ser una URL http/https valida." });
+  if (!isValidHttpUrl(dashboardUrl)) {
+    return res.status(400).json({
+      error: "dashboard_url (o embed_url) debe ser una URL http/https valida.",
+    });
   }
 
   if (typeof isActive !== "boolean") {
@@ -701,14 +733,14 @@ app.put("/api/admin/clients/:id", async (req, res) => {
          is_active = $3
        WHERE id = $4
        RETURNING id, slug, name, embed_url, is_active, created_at`,
-      [name, embedUrl, isActive, clientId]
+      [name, dashboardUrl, isActive, clientId]
     );
 
     if (!rows.length) {
       return res.status(404).json({ error: "Cliente no encontrado." });
     }
 
-    return res.json({ client: rows[0] });
+    return res.json({ client: withDashboardUrl(rows[0]) });
   } catch (e) {
     console.error("admin clients update error:", e);
     return res.status(500).json({ error: "Error de servidor" });
@@ -741,9 +773,61 @@ app.delete("/api/admin/clients/:id", async (req, res) => {
       return res.status(404).json({ error: "Cliente no encontrado." });
     }
 
-    return res.json({ client: rows[0] });
+    return res.json({ client: withDashboardUrl(rows[0]) });
   } catch (e) {
     console.error("admin clients delete error:", e);
+    return res.status(500).json({ error: "Error de servidor" });
+  }
+});
+
+app.delete("/api/admin/clients/:id/permanent", async (req, res) => {
+  const clientId = parseId(req.params.id);
+  if (!clientId) {
+    return res.status(400).json({ error: "ID de cliente invalido." });
+  }
+
+  const confirmName = String(req.body?.confirm_name ?? "");
+  if (!confirmName) {
+    return res.status(400).json({ error: "confirm_name es obligatorio para eliminar." });
+  }
+
+  try {
+    const { rows: foundRows } = await pool.query(
+      `SELECT id, name
+       FROM clients
+       WHERE id = $1
+       LIMIT 1`,
+      [clientId]
+    );
+
+    if (!foundRows.length) {
+      return res.status(404).json({ error: "Cliente no encontrado." });
+    }
+
+    const client = foundRows[0];
+    const expectedName = String(client?.name ?? "");
+    if (confirmName !== expectedName) {
+      return res.status(400).json({ error: "El nombre de confirmacion no coincide." });
+    }
+
+    const { rows } = await pool.query(
+      `DELETE FROM clients
+       WHERE id = $1
+       RETURNING id, slug, name, embed_url, is_active, created_at`,
+      [clientId]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ error: "Cliente no encontrado." });
+    }
+
+    return res.json({ deleted: true, client: withDashboardUrl(rows[0]) });
+  } catch (e) {
+    if (e?.code === "23503") {
+      return res.status(409).json({ error: "No se puede eliminar cliente por datos relacionados." });
+    }
+
+    console.error("admin clients permanent delete error:", e);
     return res.status(500).json({ error: "Error de servidor" });
   }
 });
@@ -1076,7 +1160,7 @@ app.get("/api/clients", requireAuth, async (req, res) => {
       rows = userRows;
     }
 
-    res.json({ items: rows });
+    res.json({ items: includeAll ? withDashboardUrls(rows) : rows });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: "Error de servidor" });
@@ -1779,7 +1863,7 @@ app.patch("/api/clients/:slug/agenda/:eventId/status", requireAuth, async (req, 
   }
 });
 
-app.get("/api/clients/:slug/embed", requireAuth, async (req, res) => {
+async function getClientDashboard(req, res) {
   const { slug } = req.params;
   try {
     let rows = [];
@@ -1824,17 +1908,20 @@ app.get("/api/clients/:slug/embed", requireAuth, async (req, res) => {
       return res.status(404).json({ error: "Cliente no encontrado" });
     }
 
-    res.json(rows[0]);
+    res.json(withDashboardUrl(rows[0]));
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: "Error de servidor" });
   }
-});
+}
+
+app.get("/api/clients/:slug/embed", requireAuth, getClientDashboard);
+app.get("/api/clients/:slug/dashboard", requireAuth, getClientDashboard);
 
 app.post("/api/clients", requireAuth, requireAdmin, async (req, res) => {
   const slug = normalizeSlug(req.body?.slug);
   const name = cleanText(req.body?.name);
-  const embedUrl = cleanText(req.body?.embed_url);
+  const dashboardUrl = resolveDashboardUrlInput(req.body);
   const isActive = req.body?.is_active !== false;
 
   if (!slugPattern.test(slug)) {
@@ -1847,12 +1934,14 @@ app.post("/api/clients", requireAuth, requireAdmin, async (req, res) => {
     return res.status(400).json({ error: "El nombre es obligatorio." });
   }
 
-  if (!isValidHttpUrl(embedUrl)) {
-    return res.status(400).json({ error: "embed_url debe ser una URL http/https valida." });
+  if (!isValidHttpUrl(dashboardUrl)) {
+    return res.status(400).json({
+      error: "dashboard_url (o embed_url) debe ser una URL http/https valida.",
+    });
   }
 
   try {
-    const params = [slug, name, embedUrl, isActive];
+    const params = [slug, name, dashboardUrl, isActive];
     const upsertWithUpdatedAt = `
       INSERT INTO clients (slug, name, embed_url, is_active, updated_at)
       VALUES ($1, $2, $3, $4, NOW())
@@ -1877,11 +1966,11 @@ app.post("/api/clients", requireAuth, requireAdmin, async (req, res) => {
 
     try {
       const { rows } = await pool.query(upsertWithUpdatedAt, params);
-      return res.status(201).json(rows[0]);
+      return res.status(201).json(withDashboardUrl(rows[0]));
     } catch (innerErr) {
       if (innerErr?.code !== "42703") throw innerErr;
       const { rows } = await pool.query(upsertWithoutUpdatedAt, params);
-      return res.status(201).json(rows[0]);
+      return res.status(201).json(withDashboardUrl(rows[0]));
     }
   } catch (e) {
     console.error(e);

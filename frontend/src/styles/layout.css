@@ -244,7 +244,8 @@
 }
 
 .adminBtn,
-.adminBtnGhost{
+.adminBtnGhost,
+.adminBtnDanger{
   cursor: pointer;
   border-radius: 12px;
   border: 1px solid var(--stroke2);
@@ -262,8 +263,15 @@
   background: rgba(255,255,255,.04);
 }
 
+.adminBtnDanger{
+  border-color: rgba(239,68,68,.45);
+  color: rgba(255,220,220,.95);
+  background: rgba(239,68,68,.18);
+}
+
 .adminBtn:disabled,
-.adminBtnGhost:disabled{
+.adminBtnGhost:disabled,
+.adminBtnDanger:disabled{
   opacity: .65;
   cursor: not-allowed;
 }

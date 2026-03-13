@@ -48,13 +48,51 @@ export default function AdminClientsList() {
     }
   }
 
+  async function onPermanentDelete(client) {
+    const expectedName = String(client?.name || "");
+    if (!expectedName.trim()) {
+      setErr("No se puede confirmar eliminacion: cliente sin nombre valido.");
+      return;
+    }
+
+    const typedName = window.prompt(
+      `Eliminar cliente "${expectedName}" de forma definitiva.\nEsta accion borrara sus accesos y datos asociados.\n\nEscribe exactamente el nombre (incluyendo mayusculas y espacios) para confirmar:`,
+      ""
+    );
+
+    if (typedName === null) return;
+
+    if (typedName !== expectedName) {
+      setErr("El nombre ingresado no coincide. Eliminacion cancelada.");
+      setOk("");
+      return;
+    }
+
+    if (!window.confirm(`Confirmas eliminar definitivamente al cliente "${expectedName}"?`)) return;
+
+    setBusyId(client.id);
+    setErr("");
+    setOk("");
+    try {
+      await apiDelete(`/api/admin/clients/${client.id}/permanent`, {
+        confirm_name: typedName,
+      });
+      setOk(`Cliente ${expectedName} eliminado definitivamente.`);
+      await loadClients();
+    } catch (e) {
+      setErr(e.message || "No se pudo eliminar cliente.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   return (
     <div className="adminUsersWrap">
       <section className="adminPanel">
         <div className="adminUsersHead">
           <div>
             <h2 className="adminTitle">Admin clientes</h2>
-            <p className="adminSub">Gestiona clientes y su URL embed de dashboard.</p>
+            <p className="adminSub">Gestiona clientes y su URL de dashboard externo.</p>
           </div>
           <Link className="adminBtn adminBtnLink" to="/admin/clients/new">
             Crear cliente
@@ -84,7 +122,7 @@ export default function AdminClientsList() {
                     <td>
                       <div className="adminUserCell">
                         <strong>{client.name}</strong>
-                        <span>{client.embed_url}</span>
+                        <span>{client.dashboard_url || client.embed_url}</span>
                       </div>
                     </td>
                     <td>
@@ -108,6 +146,14 @@ export default function AdminClientsList() {
                           disabled={!client.is_active || busyId === client.id}
                         >
                           Desactivar
+                        </button>
+                        <button
+                          type="button"
+                          className="adminBtnDanger"
+                          onClick={() => onPermanentDelete(client)}
+                          disabled={busyId === client.id}
+                        >
+                          Eliminar
                         </button>
                       </div>
                     </td>
