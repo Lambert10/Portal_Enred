@@ -33,7 +33,7 @@ export default function AppLayout() {
         <aside className="sidebar">
           <div className="brandRow">
             <div className="brandLogo">
-              <img src="/logos/enred-consultores.png" alt="Enred Consultores" />
+              <img src="/social/enred-logo-share.png" alt="Enred Consultores" />
             </div>
             <div className="brandText">
               <h2>Portal Enred</h2>
@@ -99,7 +99,7 @@ export default function AppLayout() {
               fontSize: 12,
             }}
           >
-            Proximo paso: login real + permisos por rol + embedded tokens.
+            Proximo paso: login real + permisos por rol + tokens de acceso por cliente.
           </div>
         </aside>
 

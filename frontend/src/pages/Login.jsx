@@ -50,7 +50,7 @@ export default function Login() {
       <div style={styles.card}>
         <div style={styles.head}>
           <div style={styles.logo}>
-            <img src="/logos/enred-consultores.png" alt="Enred Consultores" style={styles.logoImg} />
+            <img src="/social/enred-logo-share.png" alt="Enred Consultores" style={styles.logoImg} />
           </div>
           <div>
             <h2 style={{ margin: 0 }}>Ingresar</h2>
@@ -107,17 +107,17 @@ const styles = {
   },
   head: { display: "flex", alignItems: "center", gap: 12 },
   logo: {
-    width: 44,
+    width: 112,
     height: 44,
-    borderRadius: 14,
-    background: "rgba(7,10,18,.85)",
-    border: "1px solid rgba(255,255,255,.12)",
-    overflow: "hidden",
+    borderRadius: 10,
+    background: "transparent",
+    overflow: "hidden"
   },
   logoImg: {
     width: "100%",
     height: "100%",
-    objectFit: "cover",
+    objectFit: "contain",
+    objectPosition: "left center",
     display: "block",
   },
   sub: { margin: "4px 0 0", fontSize: 12, color: "rgba(232,236,255,.65)" },
