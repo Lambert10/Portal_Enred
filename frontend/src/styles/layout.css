@@ -44,19 +44,18 @@
   display:flex;
   align-items:center;
   justify-content: center;
-  padding: 10px;
-  border-radius: var(--radius);
-  border: 1px solid rgba(255,255,255,.2);
-  background: linear-gradient(180deg, rgba(255,255,255,.16), rgba(255,255,255,.1));
+  padding: 6px 4px 12px;
 }
 
 .brandLogo{
   width: 100%;
-  max-width: 180px;
-  height: 52px;
-  border-radius: 12px;
-  border: 1px solid rgba(10,28,55,.14);
-  background: rgba(242,248,255,.98);
+  max-width: 172px;
+  height: 46px;
+  padding: 6px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,.28);
+  background: linear-gradient(180deg, rgba(246,250,255,.96), rgba(233,241,252,.96));
+  box-shadow: 0 10px 26px rgba(3,8,20,.28), inset 0 1px 0 rgba(255,255,255,.55);
   display: flex;
   align-items: center;
   justify-content: center;
