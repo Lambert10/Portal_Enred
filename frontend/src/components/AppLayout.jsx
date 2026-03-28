@@ -35,10 +35,6 @@ export default function AppLayout() {
             <div className="brandLogo">
               <img src="/social/enred-logo-share.png" alt="Enred Consultores" />
             </div>
-            <div className="brandText">
-              <h2>Portal Enred</h2>
-              <p>BI para clientes</p>
-            </div>
           </div>
 
           <nav className="nav">
