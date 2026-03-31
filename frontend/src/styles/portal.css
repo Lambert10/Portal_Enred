@@ -29,6 +29,14 @@ body{
     linear-gradient(180deg, var(--bg0), var(--bg1));
 }
 
+:root[data-theme="light"] body{
+  background:
+    radial-gradient(980px 560px at 8% 8%, rgba(51,92,255,.11), transparent 60%),
+    radial-gradient(760px 440px at 90% 16%, rgba(2,132,199,.10), transparent 58%),
+    radial-gradient(640px 380px at 50% 100%, rgba(51,92,255,.07), transparent 62%),
+    linear-gradient(180deg, var(--bg0), var(--bg1));
+}
+
 a{ color:inherit; }
 
 .container{
@@ -450,6 +458,80 @@ a{ color:inherit; }
 
 .dashCardCta span:last-child{
   color: var(--muted2);
+}
+
+:root[data-theme="light"] .state{
+  background: rgba(255,255,255,.78);
+}
+
+:root[data-theme="light"] .card,
+:root[data-theme="light"] .dashHero,
+:root[data-theme="light"] .dashCard{
+  border-color: rgba(15,23,42,.14);
+  box-shadow: 0 16px 48px rgba(15,23,42,.14);
+}
+
+:root[data-theme="light"] .card{
+  background:
+    radial-gradient(760px 240px at 0% 0%, rgba(51,92,255,.10), transparent 58%),
+    radial-gradient(620px 220px at 100% 20%, rgba(2,132,199,.08), transparent 55%),
+    linear-gradient(180deg, rgba(255,255,255,.88), rgba(255,255,255,.74));
+}
+
+:root[data-theme="light"] .badge,
+:root[data-theme="light"] .pill,
+:root[data-theme="light"] .dashCardSlug,
+:root[data-theme="light"] .dashEyebrow{
+  background: rgba(15,23,42,.04);
+  border-color: rgba(15,23,42,.14);
+}
+
+:root[data-theme="light"] .dashHero{
+  background:
+    radial-gradient(700px 240px at 0% 0%, rgba(51,92,255,.10), transparent 58%),
+    radial-gradient(680px 220px at 100% 100%, rgba(2,132,199,.08), transparent 60%),
+    linear-gradient(180deg, rgba(255,255,255,.90), rgba(255,255,255,.80));
+}
+
+:root[data-theme="light"] .dashStat{
+  background: rgba(255,255,255,.74);
+}
+
+:root[data-theme="light"] .dashStat strong{
+  color: rgba(15,23,42,.94);
+}
+
+:root[data-theme="light"] .dashCard{
+  background:
+    radial-gradient(840px 260px at -10% -10%, rgba(51,92,255,.12), transparent 58%),
+    linear-gradient(180deg, rgba(255,255,255,.88), rgba(255,255,255,.78));
+}
+
+:root[data-theme="light"] .dashCardMedia::after{
+  background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(10,20,40,.30));
+}
+
+:root[data-theme="light"] .dashCardTags span{
+  color: rgba(15,23,42,.84);
+  border-color: rgba(15,23,42,.14);
+  background: rgba(255,255,255,.78);
+}
+
+:root[data-theme="light"] .dashCardCta span:first-child{
+  color: rgba(15,23,42,.95);
+}
+
+:root[data-theme="light"] .dashCardBadge{
+  border-color: rgba(22,163,74,.36);
+  color: rgba(6,95,70,.94);
+  background: rgba(34,197,94,.20);
+}
+
+:root[data-theme="light"] .dashCardMediaLogo{
+  background:
+    radial-gradient(520px 220px at 14% 0%, rgba(51,92,255,.16), transparent 60%),
+    radial-gradient(460px 220px at 90% 100%, rgba(2,132,199,.14), transparent 60%),
+    rgba(255,255,255,.92);
 }
 
 @media (max-width: 640px){

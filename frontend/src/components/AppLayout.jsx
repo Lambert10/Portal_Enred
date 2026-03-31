@@ -1,5 +1,7 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
+
+const THEME_STORAGE_KEY = "enred_theme";
 
 function getStoredUser() {
   try {
@@ -11,10 +13,38 @@ function getStoredUser() {
   }
 }
 
+function getStoredTheme() {
+  try {
+    const raw = localStorage.getItem(THEME_STORAGE_KEY);
+    if (raw === "light" || raw === "dark") return raw;
+  } catch {
+    // ignore
+  }
+
+  if (typeof window !== "undefined" && window.matchMedia?.("(prefers-color-scheme: light)").matches) {
+    return "light";
+  }
+  return "dark";
+}
+
 export default function AppLayout() {
   const nav = useNavigate();
   const user = useMemo(() => getStoredUser(), []);
+  const [theme, setTheme] = useState(getStoredTheme);
   const isAdmin = user?.role === "admin";
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, theme);
+    } catch {
+      // ignore
+    }
+  }, [theme]);
+
+  function toggleTheme() {
+    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
+  }
 
   function logout() {
     try {
@@ -87,14 +117,7 @@ export default function AppLayout() {
             )}
           </nav>
 
-          <div
-            style={{
-              marginTop: 16,
-              padding: "10px 10px",
-              color: "rgba(232,236,255,.55)",
-              fontSize: 12,
-            }}
-          >
+          <div className="sidebarNote">
             Proximo paso: login real + permisos por rol + tokens de acceso por cliente.
           </div>
         </aside>
@@ -106,7 +129,42 @@ export default function AppLayout() {
               <span>Vista tecnologica / estilo SaaS</span>
             </div>
 
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div className="topControls">
+              <button
+                type="button"
+                onClick={toggleTheme}
+                className={`themeSwitch ${theme === "light" ? "themeSwitchLight" : ""}`}
+                title={theme === "dark" ? "Cambiar a tema claro" : "Cambiar a tema oscuro"}
+                aria-label={theme === "dark" ? "Activar tema claro" : "Activar tema oscuro"}
+                aria-pressed={theme === "light"}
+              >
+                <span className="themeSwitchIcon themeSwitchIconMoon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" role="img" focusable="false">
+                    <path
+                      d="M21 14.6A9 9 0 1 1 12.4 3a7.2 7.2 0 1 0 8.6 11.6Z"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </span>
+                <span className="themeSwitchIcon themeSwitchIconSun" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" role="img" focusable="false">
+                    <circle cx="12" cy="12" r="4.2" fill="none" stroke="currentColor" strokeWidth="1.8" />
+                    <path
+                      d="M12 2.7v2.1M12 19.2v2.1M21.3 12h-2.1M4.8 12H2.7M18.7 5.3l-1.5 1.5M6.8 17.2l-1.5 1.5M18.7 18.7l-1.5-1.5M6.8 6.8 5.3 5.3"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                </span>
+                <span className="themeSwitchThumb" aria-hidden="true" />
+              </button>
+
               <div className="search">
                 <span style={{ opacity: 0.75 }}>Q</span>
                 <input placeholder="Buscar (proximamente global)..." disabled />
@@ -114,16 +172,7 @@ export default function AppLayout() {
 
               <button
                 onClick={logout}
-                style={{
-                  cursor: "pointer",
-                  padding: "10px 12px",
-                  borderRadius: 14,
-                  border: "1px solid rgba(255,255,255,.12)",
-                  background: "rgba(255,255,255,.04)",
-                  color: "rgba(232,236,255,.92)",
-                  fontSize: 13,
-                  fontWeight: 700,
-                }}
+                className="topBtn topBtnLogout"
                 title="Cerrar sesion"
               >
                 Cerrar sesion

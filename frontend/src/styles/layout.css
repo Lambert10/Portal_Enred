@@ -12,6 +12,35 @@
   --accent2:#22D3EE;
   --radius: 18px;
   --shadow: 0 24px 80px rgba(0,0,0,.55);
+  --surfaceStrong: rgba(0,0,0,.22);
+  --surfaceSoft: rgba(0,0,0,.16);
+  --overlay: rgba(0,0,0,.58);
+  --btnBg: rgba(255,255,255,.04);
+  --btnBorder: rgba(255,255,255,.12);
+  --btnText: rgba(232,236,255,.92);
+  --searchBg: rgba(0,0,0,.25);
+}
+
+:root[data-theme="light"]{
+  --bg0:#f3f6fb;
+  --bg1:#e8eef8;
+  --panel: rgba(255,255,255,.74);
+  --panel2: rgba(255,255,255,.62);
+  --stroke: rgba(15,23,42,.14);
+  --stroke2: rgba(15,23,42,.22);
+  --text:#0F172A;
+  --muted:rgba(15,23,42,.72);
+  --muted2:rgba(15,23,42,.56);
+  --accent:#335CFF;
+  --accent2:#0284C7;
+  --shadow: 0 18px 56px rgba(15,23,42,.14);
+  --surfaceStrong: rgba(255,255,255,.74);
+  --surfaceSoft: rgba(255,255,255,.70);
+  --overlay: rgba(15,23,42,.28);
+  --btnBg: rgba(255,255,255,.78);
+  --btnBorder: rgba(15,23,42,.14);
+  --btnText: rgba(15,23,42,.92);
+  --searchBg: rgba(255,255,255,.78);
 }
 
 .appShell{
@@ -22,6 +51,14 @@
     radial-gradient(800px 480px at 50% 95%, rgba(124,92,255,.12), transparent 62%),
     linear-gradient(180deg, var(--bg0), var(--bg1));
   color: var(--text);
+}
+
+:root[data-theme="light"] .appShell{
+  background:
+    radial-gradient(980px 520px at 8% 8%, rgba(51,92,255,.12), transparent 58%),
+    radial-gradient(760px 420px at 92% 12%, rgba(2,132,199,.10), transparent 55%),
+    radial-gradient(640px 380px at 52% 100%, rgba(51,92,255,.08), transparent 60%),
+    linear-gradient(180deg, var(--bg0), var(--bg1));
 }
 
 .shellGrid{
@@ -109,6 +146,13 @@
   padding: 3px 8px;
 }
 
+.sidebarNote{
+  margin-top: 16px;
+  padding: 10px 10px;
+  color: var(--muted2);
+  font-size: 12px;
+}
+
 .main{
   padding: 18px 18px 40px;
 }
@@ -140,6 +184,14 @@
   color: var(--muted);
 }
 
+.topControls{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  width: min(920px, 100%);
+  justify-content:flex-end;
+}
+
 .search{
   width: min(520px, 100%);
   display:flex;
@@ -147,7 +199,7 @@
   gap:10px;
   padding: 10px 12px;
   border-radius: 14px;
-  background: rgba(0,0,0,.25);
+  background: var(--searchBg);
   border: 1px solid var(--stroke);
 }
 .search input{
@@ -159,6 +211,109 @@
   font-size: 13px;
 }
 .search input::placeholder{ color: var(--muted2); }
+
+.topBtn{
+  cursor: pointer;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--btnBorder);
+  background: var(--btnBg);
+  color: var(--btnText);
+  font-size: 13px;
+  font-weight: 700;
+  transition: transform .18s ease, border-color .18s ease, background .18s ease;
+}
+
+.topBtn:hover{
+  transform: translateY(-1px);
+  border-color: var(--stroke2);
+}
+
+.topBtnLogout{
+  min-width: 102px;
+}
+
+.themeSwitch{
+  cursor: pointer;
+  position: relative;
+  width: 88px;
+  height: 38px;
+  border-radius: 999px;
+  border: 1px solid var(--btnBorder);
+  background: var(--btnBg);
+  color: var(--btnText);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  justify-items: center;
+  padding: 0;
+  transition: border-color .18s ease, background .18s ease, transform .18s ease;
+}
+
+.themeSwitch:hover{
+  transform: translateY(-1px);
+  border-color: var(--stroke2);
+}
+
+.themeSwitchIcon{
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+  transition: color .18s ease, opacity .18s ease;
+}
+
+.themeSwitchIcon svg{
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
+.themeSwitchIconMoon{
+  color: rgba(232,236,255,.92);
+  opacity: .95;
+}
+
+.themeSwitchIconSun{
+  color: rgba(232,236,255,.58);
+  opacity: .7;
+}
+
+.themeSwitchThumb{
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.12);
+  border: 1px solid rgba(255,255,255,.15);
+  box-shadow: 0 6px 16px rgba(0,0,0,.24);
+  transition: transform .2s ease, background .2s ease, border-color .2s ease;
+}
+
+.themeSwitchLight .themeSwitchThumb{
+  transform: translateX(50px);
+  background: rgba(255,255,255,.88);
+  border-color: rgba(15,23,42,.20);
+}
+
+.themeSwitchLight .themeSwitchIconMoon{
+  color: rgba(15,23,42,.52);
+  opacity: .7;
+}
+
+.themeSwitchLight .themeSwitchIconSun{
+  color: rgba(15,23,42,.88);
+  opacity: .95;
+}
+
+.themeSwitch:focus-visible{
+  outline: 2px solid rgba(124,92,255,.5);
+  outline-offset: 2px;
+}
 
 .content{
   margin-top: 14px;
@@ -205,7 +360,7 @@
   width: 100%;
   border: 1px solid var(--stroke);
   border-radius: 12px;
-  background: rgba(0,0,0,.22);
+  background: var(--surfaceStrong);
   color: var(--text);
   font-size: 13px;
   padding: 10px 11px;
@@ -322,7 +477,7 @@
   overflow-x: auto;
   border: 1px solid var(--stroke);
   border-radius: 14px;
-  background: rgba(0,0,0,.16);
+  background: var(--surfaceSoft);
 }
 
 .adminUsersTable{
@@ -479,14 +634,14 @@
   margin-top: 12px;
   border: 1px solid var(--stroke);
   border-radius: 14px;
-  background: rgba(0,0,0,.16);
+  background: var(--surfaceSoft);
   padding: 10px;
 }
 
 .agendaModalOverlay{
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,.58);
+  background: var(--overlay);
   backdrop-filter: blur(3px);
   display: grid;
   place-items: center;
@@ -573,6 +728,61 @@
   color: rgba(232,236,255,.7);
 }
 
+:root[data-theme="light"] .sidebar{
+  background: linear-gradient(180deg, rgba(255,255,255,.82), rgba(255,255,255,.68));
+}
+
+:root[data-theme="light"] .navLink:hover{
+  background: rgba(15,23,42,.06);
+  border-color: rgba(15,23,42,.10);
+}
+
+:root[data-theme="light"] .navLinkActive{
+  background: rgba(51,92,255,.14);
+  border-color: rgba(51,92,255,.26);
+}
+
+:root[data-theme="light"] .navMeta{
+  background: rgba(15,23,42,.04);
+}
+
+:root[data-theme="light"] .themeSwitch{
+  background: rgba(255,255,255,.86);
+}
+
+:root[data-theme="light"] .topbar,
+:root[data-theme="light"] .adminPanel,
+:root[data-theme="light"] .agendaModalCard{
+  background: linear-gradient(180deg, rgba(255,255,255,.90), rgba(255,255,255,.80));
+  box-shadow: 0 16px 48px rgba(15,23,42,.14);
+}
+
+:root[data-theme="light"] .adminUsersTable th{
+  background: rgba(15,23,42,.04);
+}
+
+:root[data-theme="light"] .adminUsersTable tbody tr:hover{
+  background: rgba(51,92,255,.08);
+}
+
+:root[data-theme="light"] .adminListItem{
+  background: rgba(255,255,255,.74);
+}
+
+:root[data-theme="light"] .adminBtnGhost{
+  background: rgba(255,255,255,.75);
+}
+
+:root[data-theme="light"] .fc .fc-col-header-cell-cushion,
+:root[data-theme="light"] .fc .fc-daygrid-day-number{
+  color: rgba(15,23,42,.84);
+}
+
+:root[data-theme="light"] .fc .fc-timegrid-slot-label-cushion,
+:root[data-theme="light"] .fc .fc-timegrid-axis-cushion{
+  color: rgba(15,23,42,.65);
+}
+
 @media (max-width: 980px){
   .shellGrid{ grid-template-columns: 1fr; }
   .sidebar{
@@ -598,6 +808,15 @@
 
   .adminCheckInline{
     margin-top: 0;
+  }
+
+  .topControls{
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .topBtnLogout{
+    min-width: unset;
   }
 
   .agendaFilters{
