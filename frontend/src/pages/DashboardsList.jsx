@@ -11,7 +11,7 @@ const coverPool = [
 
 const coverBySlug = {
   abastible: { src: "/logos/abastible.png", mode: "contain", tone: "light" },
-  andesmotors: { src: "/logos/andes-motors.jpg", mode: "cover" },
+  andesmotor: { src: "/logos/andes-motors.jpg", mode: "cover" },
   "andes-motors": { src: "/logos/andes-motors.jpg", mode: "cover" },
 };
 
@@ -73,7 +73,7 @@ export default function DashboardsList() {
           <div className="dashEyebrow">Vista ejecutiva</div>
           <h2 className="dashHeroTitle">Catalogo de dashboards por cliente</h2>
           <p className="dashHeroSub">
-            Accede a reportes corporativos con una experiencia visual mas clara y orientada a accion.
+            Accede a dashboards externos por cliente con una experiencia visual clara y orientada a accion.
           </p>
         </div>
 
@@ -123,7 +123,7 @@ export default function DashboardsList() {
                 </p>
 
                 <div className="dashCardTags">
-                  <span>Power BI</span>
+                  <span>Dashboard externo</span>
                   <span>Cliente</span>
                   <span>En linea</span>
                 </div>
