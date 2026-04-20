@@ -40,6 +40,10 @@ function cleanText(value) {
   return String(value || "").trim();
 }
 
+const clientNameOverridesBySlug = Object.freeze({
+  andesmotors: "Andes Motor",
+});
+
 function normalizeEmail(value) {
   return cleanText(value).toLowerCase();
 }
@@ -107,11 +111,33 @@ function resolveDashboardUrlInput(payload) {
   return cleanText(payload?.embed_url);
 }
 
-function withDashboardUrl(row) {
+function normalizeClientName(slug, name) {
+  const normalizedSlug = normalizeSlug(slug);
+  if (normalizedSlug && clientNameOverridesBySlug[normalizedSlug]) {
+    return clientNameOverridesBySlug[normalizedSlug];
+  }
+  return cleanText(name);
+}
+
+function withNormalizedClientName(row) {
   if (!row || typeof row !== "object") return row;
-  const dashboardUrl = cleanText(row.dashboard_url || row.embed_url);
   return {
     ...row,
+    name: normalizeClientName(row.slug, row.name),
+  };
+}
+
+function withNormalizedClientNames(rows) {
+  if (!Array.isArray(rows)) return [];
+  return rows.map((row) => withNormalizedClientName(row));
+}
+
+function withDashboardUrl(row) {
+  if (!row || typeof row !== "object") return row;
+  const normalizedRow = withNormalizedClientName(row);
+  const dashboardUrl = cleanText(row.dashboard_url || row.embed_url);
+  return {
+    ...normalizedRow,
     embed_url: dashboardUrl,
     dashboard_url: dashboardUrl,
   };
@@ -179,7 +205,7 @@ async function resolveClientAccessBySlug(dbClient, user, slug) {
     throw createHttpError(404, "Cliente no encontrado");
   }
 
-  const client = clientRows[0];
+  const client = withNormalizedClientName(clientRows[0]);
 
   if (user?.role === "admin") {
     return client;
@@ -1160,7 +1186,8 @@ app.get("/api/clients", requireAuth, async (req, res) => {
       rows = userRows;
     }
 
-    res.json({ items: includeAll ? withDashboardUrls(rows) : rows });
+    const normalizedRows = withNormalizedClientNames(rows);
+    res.json({ items: includeAll ? withDashboardUrls(normalizedRows) : normalizedRows });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: "Error de servidor" });
