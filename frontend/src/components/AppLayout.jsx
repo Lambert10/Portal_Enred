@@ -125,7 +125,7 @@ export default function AppLayout() {
         <main className="main">
           <div className="topbar">
             <div className="topTitle">
-              <h1>Portal de Dashboards</h1>
+              <h1>Portal Informativo</h1>
               <span>Vista tecnologica / estilo SaaS</span>
             </div>
 
