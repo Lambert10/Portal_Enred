@@ -5,6 +5,7 @@ import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
 import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from "../lib/api";
+import { buildAgendaCsv, downloadAgendaCsv, filterAgendaForExport } from "../lib/agendaExport";
 import AgendaEventModal from "../components/AgendaEventModal";
 
 function formatDateLocal(date) {
@@ -34,6 +35,7 @@ export default function AgendaClient() {
   const [range, setRange] = useState({ from: "", to: "" });
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [err, setErr] = useState("");
   const [ok, setOk] = useState("");
   const [client, setClient] = useState(null);
@@ -171,6 +173,39 @@ export default function AgendaClient() {
     }
   }
 
+  async function handleExportAgenda() {
+    setExporting(true);
+    setErr("");
+    setOk("");
+
+    try {
+      const today = formatDateLocal(new Date());
+      const data = await apiGet(`/api/clients/${slug}/agenda`);
+      const exportItems = filterAgendaForExport(data?.items, {
+        type: filterType,
+        status: filterStatus,
+        throughDate: today,
+      });
+
+      if (!exportItems.length) {
+        throw new Error("No hay eventos para exportar con los filtros seleccionados hasta hoy.");
+      }
+
+      const safeSlug = String(slug || "agenda").replace(/[^a-z0-9-]+/gi, "-").toLowerCase();
+      const statusSuffix = filterStatus === "all" ? "todos-los-estados" : filterStatus;
+      const typeSuffix = filterType === "all" ? "todos-los-tipos" : filterType;
+      downloadAgendaCsv(
+        buildAgendaCsv(exportItems),
+        `agenda-${safeSlug}-${typeSuffix}-${statusSuffix}-hasta-${today}.csv`,
+      );
+      setOk(`${exportItems.length} evento${exportItems.length === 1 ? "" : "s"} exportado${exportItems.length === 1 ? "" : "s"} para Excel.`);
+    } catch (e) {
+      setErr(e.message || "No se pudo exportar la agenda.");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   function onDateClick(info) {
     openCreate(defaultStartForDateClick(info));
   }
@@ -239,6 +274,19 @@ export default function AgendaClient() {
             <option value="completado">completado</option>
             <option value="cancelado">cancelado</option>
           </select>
+
+          <div className="agendaExportAction">
+            <button
+              type="button"
+              className="adminBtnGhost"
+              onClick={handleExportAgenda}
+              disabled={loading || exporting}
+              title="Exporta todos los eventos hasta hoy respetando los filtros de tipo y estado"
+            >
+              {exporting ? "Exportando..." : "Exportar a Excel"}
+            </button>
+            <span>Hasta hoy · respeta los filtros seleccionados</span>
+          </div>
         </div>
 
         {ok && <div className="state">{ok}</div>}

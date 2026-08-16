@@ -625,9 +625,23 @@
 .agendaFilters{
   margin-top: 12px;
   display: grid;
-  grid-template-columns: auto minmax(150px, 220px) auto minmax(150px, 220px);
+  grid-template-columns: auto minmax(150px, 220px) auto minmax(150px, 220px) minmax(190px, 1fr);
   gap: 8px;
   align-items: center;
+}
+
+.agendaExportAction{
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 9px;
+  min-width: 0;
+}
+
+.agendaExportAction span{
+  color: var(--muted2);
+  font-size: 11px;
+  line-height: 1.25;
 }
 
 .agendaCalendarWrap{
@@ -822,5 +836,10 @@
   .agendaFilters{
     grid-template-columns: 1fr;
     align-items: stretch;
+  }
+
+  .agendaExportAction{
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
